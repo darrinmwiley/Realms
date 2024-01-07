@@ -5,23 +5,28 @@ using UnityEngine;
 public class GridTester : MonoBehaviour
 {
     public GameObject objectPrefab;
+    public GameObject playerPrefab;
 
     public int perlinAmplitude;
-    public int perlinScale;
+    public float perlinScale;
 
     void Start()
     {
-        for(int i = 0;i<10;i++)
+        for(int i = -200;i<200;i++)
         {
-            for(int j = 0;j<10;j++)
+            for(int j = -200;j<200;j++)
             {
-                Grid.Set(Instantiate(objectPrefab), i, 0, j);
+                Grid.Set(Instantiate(objectPrefab), i, (int)GetElevation(i,j), j);
             }
         }
+        GameObject player = Instantiate(playerPrefab);
+        player.transform.position = new Vector3(0, (int)GetElevation(0,0) + 1, 0);
     }
 
     float GetElevation(int x, int z)
     {
-        return Mathf.PerlinNoise(x,z);
+        float ans = Mathf.PerlinNoise(x * perlinScale,z * perlinScale) * perlinAmplitude;
+        Debug.Log(x+" "+z+" "+ans);
+        return ans;
     }
 }
