@@ -424,6 +424,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   objectPrefab: {fileID: 3753151068315264283, guid: a5602407c89c2cd4492b609be0851150,
     type: 3}
+  playerPrefab: {fileID: 6077486965413567450, guid: 50f29194f41da21419640b0419ba43db,
+    type: 3}
   perlinAmplitude: 5
   perlinScale: 0.01
 --- !u!1 &832575517
@@ -491,7 +493,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1196222235
 MonoBehaviour:
   m_ObjectHideFlags: 0

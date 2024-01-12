@@ -16,7 +16,7 @@ public class GridTester : MonoBehaviour
         {
             for(int j = -200;j<200;j++)
             {
-                Grid.Set(Instantiate(objectPrefab), i, (int)GetElevation(i,j), j);
+                Grid.Set(Instantiate(objectPrefab), i, (int)GetElevation(i+200,j+200), j);
             }
         }
         GameObject player = Instantiate(playerPrefab);
@@ -26,7 +26,6 @@ public class GridTester : MonoBehaviour
     float GetElevation(int x, int z)
     {
         float ans = Mathf.PerlinNoise(x * perlinScale,z * perlinScale) * perlinAmplitude;
-        Debug.Log(x+" "+z+" "+ans);
         return ans;
     }
 }
