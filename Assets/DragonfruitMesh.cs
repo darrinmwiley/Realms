@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Dragonfruit : MonoBehaviour
+public class DragonfruitMesh : MonoBehaviour
 {
 
     public Material mat;
