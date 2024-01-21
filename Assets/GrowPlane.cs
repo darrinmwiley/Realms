@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 //growplane is becoming trellis. ok for now, eventually separate it back out
+//TODO fix socket location bug
 public class GrowPlane : MonoBehaviour
 {
     public GameObject planeObject;
@@ -14,6 +15,8 @@ public class GrowPlane : MonoBehaviour
     public TargetPlane left, front, right;
 
     public bool newAdded = false;
+    public bool addedJoint = false;
+    bool lol = false;
     
     void Start(){
         CreateSpline(numSegments);
@@ -34,6 +37,7 @@ public class GrowPlane : MonoBehaviour
             }
         }
         Segment last = segments[segments.Count - 1];
+        //TODO clean up going from the top of the growplane to the targetplane
         if(last.IsGrown() && !newAdded)
         {
             int randomSocketIndex = Random.Range(0,last.nodeLocations.Count);
@@ -43,8 +47,126 @@ public class GrowPlane : MonoBehaviour
             AddCapsule(start, end, segments[segments.Count - 1]);
             newAdded = true;
         }
+        if(newAdded && !addedJoint)
+        {
+            AddJointedSegment();
+            addedJoint = true;
+        }
+        if(addedJoint == true)
+        {
+            if(last.IsGrown()&& !lol)
+            {
+                AddJointToLastTwoSegmentsLol();
+                lol = true;
+            }
+        }
     }
 
+    public void AddJointedSegment()
+    {
+        float jointLength = 1;
+        Segment last = segments[segments.Count - 1];
+
+        Vector3 start = last.end;
+        Vector3 end = start + jointLength * last.body.transform.up;
+
+        Segment next = AddCapsule(start, end, last);
+    }
+
+    public void AddJointToLastTwoSegmentsLol()
+    {
+        Debug.Log("lol!");
+        Segment last = segments[segments.Count - 1];
+        Rigidbody rb = last.body.GetComponent<Rigidbody>();
+        if(rb == null)
+        {
+            rb = last.body.AddComponent<Rigidbody>();
+        }
+        rb.isKinematic = true;
+        rb.drag = 3.0f;
+        rb.angularDrag = 3.0f;
+        rb.mass = 0.01f;
+        Segment prev = segments[segments.Count - 2];
+        Debug.Log(prev == last);
+        Rigidbody rb2 = prev.body.GetComponent<Rigidbody>();
+        if(rb2 == null)
+        {
+            rb2 = prev.body.AddComponent<Rigidbody>();
+        }
+        rb2.isKinematic = true;
+        rb2.drag = 3.0f;
+        rb2.angularDrag = 3.0f;
+        rb2.mass = 0.01f;
+        ConfigureJoint(last.body, prev.body);
+    }
+
+    ConfigurableJoint ConfigureJoint(GameObject obj, GameObject connected)
+    {
+        // For all capsules except the bottom one
+        ConfigurableJoint joint = obj.AddComponent<ConfigurableJoint>();
+        joint.connectedBody = connected.GetComponent<Rigidbody>();
+
+        // Set primary and secondary axes
+        joint.axis = new Vector3(0, 1, 0); // Primary axis, e.g., local X-axis
+        joint.secondaryAxis = new Vector3(1, 0, 0); // Secondary axis, e.g., local Y-axis
+
+
+        // Lock XYZ motion
+        joint.xMotion = ConfigurableJointMotion.Locked;
+        joint.yMotion = ConfigurableJointMotion.Locked;
+        joint.zMotion = ConfigurableJointMotion.Locked;
+
+        // Lock angular X, but limit angular Y and Z
+        joint.angularXMotion = ConfigurableJointMotion.Locked;
+        joint.angularYMotion = ConfigurableJointMotion.Limited;
+        joint.angularZMotion = ConfigurableJointMotion.Limited;
+
+        // Set angular Y and Z limits
+        SoftJointLimit jointLimit = new SoftJointLimit();
+        jointLimit.limit = 5; // 5 degrees limit
+        joint.angularYLimit = jointLimit;
+        joint.angularZLimit = jointLimit;
+
+        // Set very high spring force for angular Y and Z limits using SoftJointLimitSpring
+        SoftJointLimitSpring limitSpring = new SoftJointLimitSpring();
+        limitSpring.spring = 10000; // Very high spring force
+        limitSpring.damper = 1000; // High damper
+        joint.angularYZLimitSpring = limitSpring;
+
+        // Set rotation drive mode YZ
+        JointDrive drive = new JointDrive();
+        drive.positionSpring = 5; // Small spring force
+        drive.positionDamper = 10; // Small damper
+        joint.rotationDriveMode = RotationDriveMode.Slerp;
+
+        joint.slerpDrive = drive;
+
+        // Set Y and Z target rotation to all zeros
+        joint.targetRotation = Quaternion.identity;
+
+        // Enable collision
+        joint.enableCollision = true;
+
+        // Set joint anchors
+        joint.autoConfigureConnectedAnchor = false;
+        joint.anchor = new Vector3(0, -1, 0);
+        joint.connectedAnchor = new Vector3(0, 1, 0);
+
+        // Set projection mode to None for linear deviations and Limit to angular deviations
+        joint.projectionMode = JointProjectionMode.PositionAndRotation;
+        
+        // Set the projection distance for X and Z axes to zero (no linear deviation allowed)
+        joint.projectionAngle = 0f;
+        
+        // Set the projection angle limit to zero (no angular deviation allowed) for Y-axis (vertical)
+        joint.projectionAngle = 0f;
+
+        joint.configuredInWorldSpace = true;
+
+        return joint;
+    }
+
+    //todo calculate average segment length independently of growplane here to use elsewhere
     public void CreateSpline(int numSegments)
     {
         List<float> heights = new List<float>();
@@ -69,7 +191,7 @@ public class GrowPlane : MonoBehaviour
         AddCapsules(transformed);
     }
 
-    public void AddCapsule(Vector3 startPoint, Vector3 endPoint, Segment parent)
+    public Segment AddCapsule(Vector3 startPoint, Vector3 endPoint, Segment parent)
     {
         // Create a capsule
         GameObject capsule = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -93,6 +215,7 @@ public class GrowPlane : MonoBehaviour
             parent.children.Add(next);
         }
         segments.Add(next);
+        return next;
     }
 
     public void AddCapsules(List<Vector3> locations)
