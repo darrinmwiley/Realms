@@ -237,7 +237,7 @@ public class PlantSkeleton : MonoBehaviour
 
         // Set joint anchors
         joint.autoConfigureConnectedAnchor = false;
-        joint.anchor = new Vector3(0, -1, 0);
+        joint.anchor = new Vector3(0, -.5f, 0);
         joint.connectedAnchor = new Vector3(0, 1, 0);
 
         // Set projection mode to None for linear deviations and Limit to angular deviations

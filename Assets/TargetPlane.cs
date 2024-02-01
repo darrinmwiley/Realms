@@ -5,6 +5,7 @@ using UnityEngine;
 public class TargetPlane : MonoBehaviour
 {
     public Transform plane;
+    public bool used;
 
     public Vector3 RandomPointOnPlane()
     {

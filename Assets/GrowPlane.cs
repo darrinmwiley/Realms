@@ -10,21 +10,23 @@ public class GrowPlane : MonoBehaviour
     public Material green;
 
     List<Segment> segments = new List<Segment>();
+    Segment trellisTop;
     public int numSegments;
 
-    public TargetPlane left, front, right;
+    public TargetPlane[] left, front, right;
 
     public bool newAdded = false;
-    public bool addedJoint = false;
-    bool lol = false;
+    public int bridgeJoints = 0;
     
     void Start(){
         CreateSpline(numSegments);
-        segments[0].growStartTime = Time.time;
-        segments[0].rendering.active = true;
+        trellisTop = segments[segments.Count - 1];
+        segments[0].StartGrowth();
     }
 
     void Update(){
+        //todo: after we reach the height of the trellis, 
+        //we can pick any socket and add a jointed segment to it
         for(int i = 0;i<segments.Count - 1;i++)
         {
             Segment seg = segments[i];
@@ -32,138 +34,88 @@ public class GrowPlane : MonoBehaviour
             if(seg.IsGrown() && next.growStartTime == -1)
             {
                 next.StartGrowth();
-                next.Resize(.01f);
-                next.rendering.active = true;
             }
         }
         Segment last = segments[segments.Count - 1];
         //TODO clean up going from the top of the growplane to the targetplane
-        if(last.IsGrown() && !newAdded)
+        if(trellisTop.IsGrown() && bridgeJoints != 9)
         {
-            int randomSocketIndex = Random.Range(0,last.nodeLocations.Count);
-            TargetPlane targetPlane = new TargetPlane[]{front, right, left}[randomSocketIndex % 3];
-            Vector3 start = last.nodeLocations[randomSocketIndex];
-            Vector3 end = targetPlane.RandomPointOnPlane();
-            AddCapsule(start, end, segments[segments.Count - 1]);
-            newAdded = true;
+            if(AddBridgeJoint(trellisTop))
+                bridgeJoints++;
         }
-        if(newAdded && !addedJoint)
+        for(int i = 0;i<segments.Count;i++)
         {
-            AddJointedSegment();
-            addedJoint = true;
-        }
-        if(addedJoint == true)
-        {
-            if(last.IsGrown()&& !lol)
+            Segment seg = segments[i];
+            if(seg.IsGrown() && seg.distanceFromBridge != -1 && seg.distanceFromBridge < 3 && seg.children.Count == 0)
             {
-                AddJointToLastTwoSegmentsLol();
-                lol = true;
+                float length = Random.Range(.2f, .4f) * (seg.distanceFromBridge + 1);
+                AddJointedSegment(seg.GetTip(),seg.GetTip() + length * seg.transform.up,seg, seg.distanceFromBridge == 0);
             }
         }
+        //if(newAdded && jointsAdded != 4 && segments[segments.Count - 1].IsGrown())
+        //{
+        //    AddJointedSegment();
+        //    jointsAdded++;
+        //}
     }
 
-    public void AddJointedSegment()
+    //we'll separate segments into 3 categories: 
+    //plane: vertical segments climbing up the trellis 
+    //bridge: from the top of the trellis to the edge of the trellis
+    //umbrella: jointed, hanging off the trellis after the bridge
+
+    bool AddBridgeJoint(Segment parent)
     {
-        float jointLength = 1;
+        int randomRingIndex = Random.Range(0,parent.rings.Count);
+        int randomSocketIndex = Random.Range(0,3);
+        int randomTargetPlaneIndex = Random.Range(0,3);
+
+        TargetPlane[,] targetPlanes = new TargetPlane[3,3];
+        for(int i = 0;i<3;i++)
+        {
+            targetPlanes[0,i] = front[i];
+            targetPlanes[1,i] = right[i];
+            targetPlanes[2,i] = left[i];
+        }
+        TargetPlane targetPlane = targetPlanes[randomSocketIndex,randomTargetPlaneIndex];
+        if(targetPlane.used)
+            return false;
+        Node node = parent.rings[randomRingIndex][randomSocketIndex];
+        if(node.used)
+            return false;
+        node.used = true;
+        targetPlane.used = true;
+        Vector3 start = parent.rings[randomRingIndex][randomSocketIndex].location;
+        Vector3 end = targetPlane.RandomPointOnPlane();
+        Segment added = AddJointedSegment(start, end, parent, true, true);
+        added.distanceFromBridge = 0;
+        return true;
+    }
+
+    //for adding with a node
+    public Segment AddJointedSegment(Vector3 start, Vector3 end, Segment parent, bool shouldParentBeKinematic = false, bool shouldSelfBeKinematic = false)
+    {
+        Segment next = AddCapsule(start, end, parent);
+        next.isJointed = true;
+        next.AddJoint(shouldParentBeKinematic, shouldSelfBeKinematic);
+        next.StartGrowth();
+        return next;
+    } 
+
+    //this one is for adding it with the tip
+    public Segment AddJointedSegment(Segment parent)
+    {
+        float jointLength = .5f;
         Segment last = segments[segments.Count - 1];
 
-        Vector3 start = last.end;
-        Vector3 end = start + jointLength * last.body.transform.up;
+        Vector3 start = last.GetTip();
+        Vector3 end = start + jointLength * last.transform.up;
 
         Segment next = AddCapsule(start, end, last);
-    }
-
-    public void AddJointToLastTwoSegmentsLol()
-    {
-        Debug.Log("lol!");
-        Segment last = segments[segments.Count - 1];
-        Rigidbody rb = last.body.GetComponent<Rigidbody>();
-        if(rb == null)
-        {
-            rb = last.body.AddComponent<Rigidbody>();
-        }
-        rb.isKinematic = true;
-        rb.drag = 3.0f;
-        rb.angularDrag = 3.0f;
-        rb.mass = 0.01f;
-        Segment prev = segments[segments.Count - 2];
-        Debug.Log(prev == last);
-        Rigidbody rb2 = prev.body.GetComponent<Rigidbody>();
-        if(rb2 == null)
-        {
-            rb2 = prev.body.AddComponent<Rigidbody>();
-        }
-        rb2.isKinematic = true;
-        rb2.drag = 3.0f;
-        rb2.angularDrag = 3.0f;
-        rb2.mass = 0.01f;
-        ConfigureJoint(last.body, prev.body);
-    }
-
-    ConfigurableJoint ConfigureJoint(GameObject obj, GameObject connected)
-    {
-        // For all capsules except the bottom one
-        ConfigurableJoint joint = obj.AddComponent<ConfigurableJoint>();
-        joint.connectedBody = connected.GetComponent<Rigidbody>();
-
-        // Set primary and secondary axes
-        joint.axis = new Vector3(0, 1, 0); // Primary axis, e.g., local X-axis
-        joint.secondaryAxis = new Vector3(1, 0, 0); // Secondary axis, e.g., local Y-axis
-
-
-        // Lock XYZ motion
-        joint.xMotion = ConfigurableJointMotion.Locked;
-        joint.yMotion = ConfigurableJointMotion.Locked;
-        joint.zMotion = ConfigurableJointMotion.Locked;
-
-        // Lock angular X, but limit angular Y and Z
-        joint.angularXMotion = ConfigurableJointMotion.Locked;
-        joint.angularYMotion = ConfigurableJointMotion.Limited;
-        joint.angularZMotion = ConfigurableJointMotion.Limited;
-
-        // Set angular Y and Z limits
-        SoftJointLimit jointLimit = new SoftJointLimit();
-        jointLimit.limit = 5; // 5 degrees limit
-        joint.angularYLimit = jointLimit;
-        joint.angularZLimit = jointLimit;
-
-        // Set very high spring force for angular Y and Z limits using SoftJointLimitSpring
-        SoftJointLimitSpring limitSpring = new SoftJointLimitSpring();
-        limitSpring.spring = 10000; // Very high spring force
-        limitSpring.damper = 1000; // High damper
-        joint.angularYZLimitSpring = limitSpring;
-
-        // Set rotation drive mode YZ
-        JointDrive drive = new JointDrive();
-        drive.positionSpring = 5; // Small spring force
-        drive.positionDamper = 10; // Small damper
-        joint.rotationDriveMode = RotationDriveMode.Slerp;
-
-        joint.slerpDrive = drive;
-
-        // Set Y and Z target rotation to all zeros
-        joint.targetRotation = Quaternion.identity;
-
-        // Enable collision
-        joint.enableCollision = true;
-
-        // Set joint anchors
-        joint.autoConfigureConnectedAnchor = false;
-        joint.anchor = new Vector3(0, -1, 0);
-        joint.connectedAnchor = new Vector3(0, 1, 0);
-
-        // Set projection mode to None for linear deviations and Limit to angular deviations
-        joint.projectionMode = JointProjectionMode.PositionAndRotation;
-        
-        // Set the projection distance for X and Z axes to zero (no linear deviation allowed)
-        joint.projectionAngle = 0f;
-        
-        // Set the projection angle limit to zero (no angular deviation allowed) for Y-axis (vertical)
-        joint.projectionAngle = 0f;
-
-        joint.configuredInWorldSpace = true;
-
-        return joint;
+        next.isJointed = true;
+        next.AddJoint();
+        next.StartGrowth();
+        return next;
     }
 
     //todo calculate average segment length independently of growplane here to use elsewhere
@@ -194,28 +146,25 @@ public class GrowPlane : MonoBehaviour
     public Segment AddCapsule(Vector3 startPoint, Vector3 endPoint, Segment parent)
     {
         // Create a capsule
-        GameObject capsule = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        capsule.transform.position = (startPoint + endPoint) / 2; // Position it in the middle between the two points
+        GameObject segmentObj = new GameObject("segment");
+        segmentObj.transform.position = (startPoint); // Position it in the middle between the two points
 
         // Scale the capsule
-        float capsuleHeight = (startPoint - endPoint).magnitude; // Calculate the distance between the points
-        capsule.transform.localScale = new Vector3(.03f, capsuleHeight * 0.5f,  .03f); // Scale it
+        float height = (startPoint - endPoint).magnitude; // Calculate the distance between the points
 
         // Rotate the capsule to align with the points
-        capsule.transform.up = endPoint - startPoint;
-        capsule.GetComponent<Renderer>().enabled = false;
-        Segment next = capsule.AddComponent<Segment>();
-        next.body = capsule;
-        next.growTime = 4;
-        next.start = startPoint;
-        next.end = endPoint;
-        next.Init(green);
+        segmentObj.transform.up = endPoint - startPoint;
+        Segment segment = segmentObj.AddComponent<Segment>();
+        segment.growTime = 4;
+        segment.start = startPoint;
+        segment.end = endPoint;
         if(parent != null){
-            next.parent = parent;
-            parent.children.Add(next);
+            segment.parent = parent;
+            parent.children.Add(segment);
         }
-        segments.Add(next);
-        return next;
+        segment.Init(green, startPoint);
+        segments.Add(segment);
+        return segment;
     }
 
     public void AddCapsules(List<Vector3> locations)
