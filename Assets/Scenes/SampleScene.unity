@@ -2104,14 +2104,14 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  petalWidthMultiplier: 1
+  petalWidthMultiplier: 0.2
   petalThicknessCurve:
     serializedVersion: 2
     m_Curve: []
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  petalThicknessMultiplier: 0.2
+  petalThicknessMultiplier: 1
   petalHeight: 1
 --- !u!4 &1989215298
 Transform:

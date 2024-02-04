@@ -32,6 +32,31 @@ public static class MeshUtils
             }
     }
 
+    public static void PrintMeshDebugInfo(Mesh mesh)
+    {
+        string meshInfo = "Mesh Information:\n";
+
+        // Vertices
+        Vector3[] vertices = mesh.vertices;
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            meshInfo += "Vertex " + i + ": " + vertices[i] + "\n";
+        }
+
+        // Triangles
+        int[] triangles = mesh.triangles;
+        for (int i = 0; i < triangles.Length; i += 3)
+        {
+            int triIndex = i / 3;
+            int vertexIndex1 = triangles[i];
+            int vertexIndex2 = triangles[i + 1];
+            int vertexIndex3 = triangles[i + 2];
+            meshInfo += "Triangle " + triIndex + ": " + vertexIndex1 + ", " + vertexIndex2 + ", " + vertexIndex3 + "\n";
+        }
+
+        Debug.Log(meshInfo);
+    }
+
     public static Mesh Combine(params Mesh[] meshes)
     {
         CombineInstance[] combine = new CombineInstance[meshes.Length];
@@ -69,7 +94,14 @@ public class Face{
             {
                 triangles[t*3] = i * pointsPerLine + j;
                 triangles[t*3 + 1] = (i+1) * pointsPerLine + j+1;
-                triangles[t*3 + 2] = i * pointsPerLine + j;
+                triangles[t*3 + 2] = i * pointsPerLine + j + 1;
+                
+                triangles[t*3 + 3] = i * pointsPerLine + j;
+                triangles[t*3 + 4] = (i+1) * pointsPerLine + j;
+                triangles[t*3 + 5] = (i+1) * pointsPerLine + j + 1;
+
+                t += 2;
+
              /*   triangles[t*3] = i*2;
                 triangles[t*3 + 1] = (i+1) * 2 + 1;
                 triangles[t*3 + 2] = i*2 + 1;
@@ -81,17 +113,6 @@ public class Face{
                 t+=2;*/
             }
         }
-
-        for(int i = 0;i<vertices.Length;i++)
-        {
-            Debug.Log(i+" "+vertices[i]);
-        }
-
-        string str = "";
-        foreach( int x in triangles)
-            str+=x+" ";
-        Debug.Log(str);
-
         Mesh mesh = new Mesh();
         mesh.vertices = vertices;
         mesh.triangles = triangles;
