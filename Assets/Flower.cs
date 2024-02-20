@@ -9,48 +9,181 @@ public class Flower : MonoBehaviour
     public AnimationCurve petalWidthCurve;
 
     GameObject center;
-    List<GameObject> petals = new List<GameObject>();
 
     public float centerHeight = .5f;
     public float centerRadius = 5;
     public float petalLength = 4;
-    public int numPetals = 8;
+    public int numPetals = 4;
+
+    /*petal ring parameters:
+        petal length
+        number of petals
+        petal width curve
+        petal thickness curve
+        petal colors
+        petal X angle
+    */
+
+    public class PetalRing{
+        public float petalLength;
+        public int numPetals;
+        public AnimationCurve petalWidthCurve;
+        public AnimationCurve petalThicknessCurve;
+        public float petalThicknessMultiplier;
+        //this is how "open" the flower is. 0 is vertical, 90 is horizontal
+        public float angleX;
+        //this is how far from perpendicular to radius we tilt
+        public float angleY;
+    }
+
+    public class PetalConfig{
+        public float petalLength;
+        public AnimationCurve petalWidthCurve;
+        public float petalWidthMultiplier;
+        public AnimationCurve petalThicknessCurve;
+        public float petalThicknessMultiplier;
+        //this is the angle on the flower
+        public float centerAngle;
+        //normalized - 0 = center, 1 = edge
+        public float distanceFromCenter;
+        //this is how "open" the flower is. 0 is vertical, 90 is horizontal
+        public float angleX;
+        //this is how far from perpendicular to radius we tilt
+        public float angleY;
+    }
+
+    PetalRing defaultPetalRing = new PetalRing(){
+        petalLength = 4,
+        numPetals = 8,
+        petalWidthCurve = new AnimationCurve(
+                new Keyframe(0f, 1f),   // Start at time 0 with value 1.
+                new Keyframe(1f, 0f)    // End at time 1 with value 0.
+        ),
+        petalThicknessCurve = new AnimationCurve(
+                new Keyframe(0f, 1f),   // Start at time 0 with value 1.
+                new Keyframe(1f, 0f)    // End at time 1 with value 0.
+        ),
+        petalThicknessMultiplier = .15f,
+        angleX = 45,
+        angleY = 0
+    };
+
+    PetalRing secondPetalRing = new PetalRing(){
+        petalLength = 8,
+        numPetals = 6,
+        petalWidthCurve = new AnimationCurve(
+                new Keyframe(0f, 1f),   // Start at time 0 with value 1.
+                new Keyframe(1f, 0f)    // End at time 1 with value 0.
+        ),
+        petalThicknessCurve = new AnimationCurve(
+                new Keyframe(0f, 1f),   // Start at time 0 with value 1.
+                new Keyframe(1f, 1f)    // End at time 1 with value 0.
+        ),
+        petalThicknessMultiplier = .15f,
+        angleX = 75,
+        angleY  = 0,
+    };
+
+    private List<PetalRing> petalRings = new List<PetalRing>();
+    private List<PetalConfig> petals = new List<PetalConfig>();
 
     // Start is called before the first frame update
     void Start()
     {
-        petalWidthCurve = new AnimationCurve(
-            new Keyframe(0f, 1f),   // Start at time 0 with value 1.
-            new Keyframe(1f, 0f)    // End at time 1 with value 0.
-        );
         center = new GameObject("center");
         Mesh centerMesh = MakeCenterMesh(centerHeight, centerRadius, 25, 10);
         center.AddComponent<MeshFilter>();
         center.AddComponent<MeshRenderer>().material = yellow;
+        petalRings.Add(defaultPetalRing);
+        //petalRings.Add(secondPetalRing);
+        /*int numPetals = 100;
+        float startAngle = 90;
+        float endAngle = 0;
+        float dtheta = 5;
+        for(int i = 0;i<numPetals;i++)
+        {
+            petals.Add(new PetalConfig(){
+            petalLength = 4,
+            petalWidthCurve = new AnimationCurve(
+                new Keyframe(0f, 1f),   // Start at time 0 with value 1.
+                new Keyframe(1f, 0f)    // End at time 1 with value 0.
+            ),
+            petalWidthMultiplier = 1,
+            petalThicknessCurve = new AnimationCurve(
+                    new Keyframe(0f, 1f),   // Start at time 0 with value 1.
+                    new Keyframe(1f, 1f)    // End at time 1 with value 0.
+            ),
+            centerAngle = (dtheta * i) % 360,
+            petalThicknessMultiplier = .15f,
+            distanceFromCenter = Mathf.Lerp(1, 0, i / (numPetals+0f)),
+            angleX = 75,
+            angleY = 0
+        });
+        }*/
         RegenerateMeshes();
     }
 
     void Update()
     {
-        RegenerateMeshes();
+        //RegenerateMeshes();
     }
 
     void RegenerateMeshes()
     {
-        for(int i = petals.Count - 1;i>=0;i--)
+        /*for(int i = petals.Count - 1;i>=0;i--)
         {
             GameObject.Destroy(petals[i]);
-        }
+        }*/
         center.GetComponent<MeshFilter>().mesh = MakeCenterMesh(centerHeight, centerRadius, 25, 10);
-        for(int i = 0;i<numPetals;i++)
+        foreach(PetalConfig config in petals)
         {
-            GameObject petal = new GameObject("petal");
-            petals.Add(petal);
-            Mesh petalMesh = MakePetalMesh(centerRadius, Mathf.PI * 2 / numPetals, i * Mathf.PI * 2 / numPetals, petalLength, 10);
-        
-            petal.AddComponent<MeshFilter>().mesh = petalMesh;
-            petal.AddComponent<MeshRenderer>().material = purple;
+            float xNorm = Mathf.Cos(config.centerAngle * Mathf.Deg2Rad) * config.distanceFromCenter;
+            float zNorm = Mathf.Sin(config.centerAngle * Mathf.Deg2Rad) * config.distanceFromCenter;
+            float yNorm = GetHeightOnCenter(xNorm, zNorm);
+            float x = xNorm * centerRadius;
+            float z = zNorm * centerRadius;
+            GameObject petalObj = new GameObject("petal");
+            petalObj.transform.position = new Vector3(x,yNorm * centerHeight,z);
+            Petal petal = petalObj.AddComponent<Petal>();
+            petal.petalWidthMultiplier = config.petalWidthMultiplier;
+            petal.petalThicknessMultiplier = config.petalThicknessMultiplier;
+            petal.petalHeight = config.petalLength;
+            petal.petalWidthCurve = config.petalWidthCurve;
+            petal.petalThicknessCurve = config.petalThicknessCurve;
+            petal.RegenerateMesh();
+            petal.SetMaterial(purple);
+            petal.transform.rotation = Quaternion.Euler(config.angleX,90 - config.centerAngle, 0);
+
         }
+        foreach(PetalRing petalRing in petalRings)
+        {
+            int numPetals = petalRing.numPetals;
+            for(int i = 0;i<numPetals;i++)
+            {
+                float x1 = centerRadius * Mathf.Cos(Mathf.PI * 2 * (i-.5f) / numPetals);
+                float z1 = centerRadius * Mathf.Sin(Mathf.PI * 2 * (i-.5f) / numPetals);
+                float x2 = centerRadius * Mathf.Cos(Mathf.PI * 2 * (i+.5f) / numPetals);
+                float z2 = centerRadius * Mathf.Sin(Mathf.PI * 2 * (i+.5f) / numPetals);
+                float width = Vector2.Distance(new Vector2(x1, z1), new Vector2(x2, z2));
+                float middleDeg = 360 * i / numPetals;
+                GameObject petalObj = new GameObject("petal "+i);
+                petalObj.transform.position = new Vector3((x1 + x2) / 2,0,(z1 + z2) / 2);
+                Petal petal = petalObj.AddComponent<Petal>();
+                petal.petalWidthMultiplier = width;
+                petal.petalThicknessMultiplier = petalRing.petalThicknessMultiplier;
+                petal.petalHeight = petalRing.petalLength;
+                petal.petalWidthCurve = petalRing.petalWidthCurve;
+                petal.petalThicknessCurve = petalRing.petalThicknessCurve;
+                petal.RegenerateMesh();
+                petal.SetMaterial(purple);
+                petal.transform.rotation = Quaternion.Euler(petalRing.angleX,90 - middleDeg, 0);
+            }
+        }
+    }
+
+    public float GetHeightOnCenter(float xNorm, float zNorm)
+    {
+        return Mathf.Sqrt(1 - xNorm*xNorm - zNorm*zNorm);
     }
 
     float epsilon = .001f;

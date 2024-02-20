@@ -1780,7 +1780,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1506673205
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1803,7 +1803,7 @@ MonoBehaviour:
     m_RotationOrder: 4
   centerHeight: 0.5
   centerRadius: 5
-  petalLength: 4
+  petalLength: 8
   numPetals: 8
 --- !u!4 &1506673206
 Transform:
@@ -2079,12 +2079,12 @@ GameObject:
   - component: {fileID: 1989215298}
   - component: {fileID: 1989215297}
   m_Layer: 0
-  m_Name: MeshUtilsTester
+  m_Name: PetalV2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1989215297
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2113,6 +2113,10 @@ MonoBehaviour:
     m_RotationOrder: 4
   petalThicknessMultiplier: 1
   petalHeight: 1
+  verticalSamples: 10
+  horizontalSamples: 10
+  petal: {fileID: 0}
+  lastRefreshTime: 0
 --- !u!4 &1989215298
 Transform:
   m_ObjectHideFlags: 0

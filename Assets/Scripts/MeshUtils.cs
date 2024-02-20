@@ -53,8 +53,6 @@ public static class MeshUtils
             int vertexIndex3 = triangles[i + 2];
             meshInfo += "Triangle " + triIndex + ": " + vertexIndex1 + ", " + vertexIndex2 + ", " + vertexIndex3 + "\n";
         }
-
-        Debug.Log(meshInfo);
     }
 
     public static Mesh Combine(params Mesh[] meshes)
