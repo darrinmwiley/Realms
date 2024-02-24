@@ -37,14 +37,13 @@ public class PetalV3 : MonoBehaviour
 
     void Update(){
         if(regenerateMode){
-            destroyAllChildren();
             RegenerateMesh();
         }
     }
 
     public void SetMaterial(Material mat)
     {
-        meshRenderer.material = mat;
+        meshRenderer.sharedMaterial = mat;
     }
 
     public void RegenerateMesh(){
