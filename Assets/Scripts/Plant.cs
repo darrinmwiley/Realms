@@ -4,25 +4,21 @@ using UnityEngine;
 
 public class Plant : MonoBehaviour
 {
-    LSystem lSystem;
-    public bool regenerateMode;
-
+    [SerializeField]
+    public LSystem lSystem;
     public Material mat;
-    
     public float growTime;
-    public float totalGrowTime;
-    float growStartTime;
-    bool growthStarted;
-    public MeshRenderer meshRenderer;
-    public MeshFilter meshFilter;
-    public float height;
-    public float baseRadius;
-    public float tipRadius;
-    public int verticalSamples;
-    public int horizontalSamples;
-    public AnimationCurve thicknessGrowthCurve;
 
-    public Material material;
+    private float totalGrowTime;
+    private float growStartTime;
+    public bool growing;
+    private MeshRenderer meshRenderer;
+    private MeshFilter meshFilter;
+
+    private float time;
+
+    public List<GameObject> components;
+
     void Start()
     {
         if(meshFilter == null)
@@ -31,57 +27,45 @@ public class Plant : MonoBehaviour
             meshRenderer = gameObject.AddComponent<MeshRenderer>();
         if(mat != null)
             meshRenderer.sharedMaterial = mat;
-            lSystem = new LSystem();
+        lSystem = LSystems.GenTest();
     }
 
     void Update()
     {
-        if(regenerateMode && growthStarted){
-            float time = GetTime();
-            if(time >= totalGrowTime)
+        if(growing){
+            time += (Time.deltaTime / growTime);
+            if(time >= 1)
             {
-                regenerateMode = false;
+                growing = false;
+                time = 1;
             }
-            meshFilter.mesh = lSystem.MakeMesh(time);
+            UpdateMesh();
         }
     }
 
-    float GetTime()
+    void UpdateMesh()
     {
-        if(growthStarted)
-            return Mathf.Min(totalGrowTime,(Time.time - growStartTime) / growTime);
-        return 0;
+        /*List<Mesh> meshes = lSystem.MakeMeshes(time * lSystem.GetTotalTime());
+        while(components.Count < meshes.Count){
+            GameObject go = new GameObject();
+            go.name = components.Count + "";
+            components.Add(go);
+            go.AddComponent<MeshFilter>();
+            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+        }
+        for(int i = 0;i<meshes.Count;i++)
+            components[i].GetComponent<MeshFilter>().mesh = meshes[i];*/
+        meshFilter.mesh = lSystem.MakeMesh(time * lSystem.GetTotalTime());
     }
 
-    public void StartGrowth()
+    public void SetTime(float time)
     {
-        lSystem = new LSystem(){
-            height = height,
-            baseRadius = baseRadius,
-            tipRadius = tipRadius,
-            verticalSamples = verticalSamples,
-            horizontalSamples = horizontalSamples,
-            thicknessGrowthCurve = thicknessGrowthCurve
-        };
-        LSystem copy = new LSystem(){
-            height = height,
-            baseRadius = baseRadius,
-            tipRadius = tipRadius,
-            verticalSamples = verticalSamples,
-            horizontalSamples = horizontalSamples,
-            thicknessGrowthCurve = thicknessGrowthCurve
-        };
-        SubLsystem sub = new SubLsystem(){
-            startTime = .5f,
-            growTime = 1.5f,
-            offsetX = 30,
-            offsetZ = 60, 
-            relativeScale = .5f,
-            lSystem = copy
-        };
-        lSystem.subsystems = new List<SubLsystem>(){sub};
-        totalGrowTime = lSystem.getTotalTime();
-        growthStarted = true;
-        growStartTime = Time.time;
+        this.time = time;
+        UpdateMesh();
+    }
+
+    public float GetTime()
+    {
+        return time;
     }
 }

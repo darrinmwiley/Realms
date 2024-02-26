@@ -32,6 +32,22 @@ public static class MeshUtils
             }
     }
 
+    public static Mesh Adjust(Mesh mesh, Vector3 newOrigin, Quaternion newRotation, float scale)
+    {
+        Vector3[] vertices = mesh.vertices;
+        Matrix4x4 matrix = Matrix4x4.TRS(newOrigin, newRotation, Vector3.one * scale);
+
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            // Apply the matrix transformation to each vertex
+            vertices[i] = matrix.MultiplyPoint3x4(vertices[i]);
+        }
+
+        mesh.vertices = vertices;
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
     public static void PrintMeshDebugInfo(Mesh mesh)
     {
         string meshInfo = "Mesh Information:\n";
@@ -55,6 +71,7 @@ public static class MeshUtils
         }
     }
 
+    //TODO: meshes need to be destroyed after combining - this may be a source of the memory leak
     public static Mesh Combine(params Mesh[] meshes)
     {
         CombineInstance[] combine = new CombineInstance[meshes.Length];
@@ -66,6 +83,7 @@ public static class MeshUtils
 
         Mesh combinedMesh = new Mesh();
         combinedMesh.CombineMeshes(combine);
+
         return combinedMesh;
     }
 }
