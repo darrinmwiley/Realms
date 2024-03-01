@@ -35,7 +35,7 @@ public class SplineLSystemBuilder : MonoBehaviour
                 thickness = thickness,
                 horizontalVariance = horizontalVariance
             };
-            plant.lSystem = lSystem; 
+            plant.root = lSystem; 
         }
         
     }

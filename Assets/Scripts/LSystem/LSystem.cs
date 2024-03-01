@@ -1,11 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System;
 
-//TODO: handle the proper construction of SubLSystem vars
-
-//idea: like types of L systems are mixable, not every to every
-public class SubSystem{
+public class LSystem : MonoBehaviour
+{
+    [Header("Stats")]
     //when does this offshoot begin growing, relative to parent segment grow time
     public float startTime;
     //where does this offshoot begin growing, normalized to parent.
@@ -20,18 +20,16 @@ public class SubSystem{
     //local scale relative to parent
     public float localScale;
     //LSystem to handle geometry of the segment
-    public LSystem lSystem;
-}
-
-public abstract class LSystem
-{
+    public bool isRoot;
+    
     //origin of segment begin in world space
-    public Vector3 origin;
+    private Vector3 origin;
     //segment absolute rotation
-    public Quaternion rotation;
+    private Quaternion rotation;
     //segment absolute scale
-    public float scale = 1;
-    public List<SubSystem> subSystems = new List<SubSystem>();
+    private float scale = 1;
+    private List<LSystem> subSystems = new List<LSystem>();
+    //TODO add parent field
 
     //this is relative to L system growth time - 
     // i.e. if getTotalTime returns 3, although this LSystem will be fully developed at time T, all children won't until 3T
@@ -42,16 +40,18 @@ public abstract class LSystem
             return 1;
         }
         float max = 0;
-        foreach(SubSystem sub in subSystems)
+        foreach(LSystem sub in subSystems)
         {
-            max = Mathf.Max(max, sub.lSystem.GetTotalTime() + sub.startTime);
+            max = Mathf.Max(max, sub.GetTotalTime() + sub.startTime);
         }
         return max;
     }
 
     //TODO: need to make this a function of offset and time
     //assuming that position and rotation are 0, and scale is 1, get position of a certain "time" on the segment
-    public abstract Vector3 GetRelativePosition(float time);
+    public virtual Vector3 GetRelativePosition(float time){
+        throw new NotImplementedException("GetRelativePosition needs to be implemented by the child class");
+    }
 
     //returns the absolute position of a certain "time" on the segment
     public Vector3 GetAbsolutePosition(float time)
@@ -79,16 +79,18 @@ public abstract class LSystem
     }
 
     //generate a mesh for this segment for a given development time
-    public abstract Mesh MakeSelfMesh(float time);
+    public virtual Mesh MakeSelfMesh(float time) {
+        throw new NotImplementedException("MakeSelfMesh needs to be implemented by the child class");
+    }
 
     public List<Mesh> MakeMeshes(float time){
         List<Mesh> meshes = new List<Mesh>();
-        foreach(SubSystem sub in subSystems)
+        foreach(LSystem sub in subSystems)
         {
             if(time >= sub.startTime)
             {
                 float subTime = time - sub.startTime;
-                Mesh subMesh = sub.lSystem.MakeMesh(subTime);
+                Mesh subMesh = sub.MakeMesh(subTime);
                 Vector3 origin = GetRelativePosition(sub.startOffset) + sub.localPosition;
                 Quaternion parentDirection = GetDirection(sub.startOffset);
                 Quaternion rotation = parentDirection * sub.localRotation;
@@ -105,12 +107,12 @@ public abstract class LSystem
     public Mesh MakeMesh(float time)
     {
         List<Mesh> meshes = new List<Mesh>();
-        foreach(SubSystem sub in subSystems)
+        foreach(LSystem sub in subSystems)
         {
             if(time >= sub.startTime)
             {
                 float subTime = time - sub.startTime;
-                Mesh subMesh = sub.lSystem.MakeMesh(subTime);
+                Mesh subMesh = sub.MakeMesh(subTime);
                 Vector3 origin = GetRelativePosition(sub.startOffset) + sub.localPosition;
                 Quaternion parentDirection = GetDirection(sub.startOffset);
                 Quaternion rotation = parentDirection * sub.localRotation;
@@ -124,11 +126,18 @@ public abstract class LSystem
     }
 
     //TODO: fix a bug with this approach - you have to add them in order right now since child position's position depends on yours already being set
-    public void AddSubSystem(SubSystem sub)
+    public void AddSubSystem(LSystem sub)
     {
-        sub.lSystem.origin = GetAbsolutePosition(sub.startOffset) + sub.localPosition;
-        sub.lSystem.rotation = GetDirection(sub.startOffset) * sub.localRotation;
-        sub.lSystem.scale = scale * sub.localScale;
         subSystems.Add(sub);
+    }
+
+    //we will call this from the "root" LSystem to initialize all origins, rotations, and scales
+    public void Init(){
+        foreach(LSystem sub in subSystems)
+        {
+            sub.origin = GetAbsolutePosition(sub.startOffset) + sub.localPosition;
+            sub.rotation = GetDirection(sub.startOffset) * sub.localRotation;
+            sub.scale = scale * sub.localScale;
+        }
     }
 }

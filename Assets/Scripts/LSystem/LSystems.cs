@@ -4,7 +4,7 @@ using UnityEngine;
 
 public static class LSystems
 {
-    public static LSystem GenTest()
+    /*public static LSystem GenTest()
     {
         CylinderLSystem trunk = new CylinderLSystem(){
             height = 10,
@@ -50,5 +50,5 @@ public static class LSystems
             lSystem = flower,
         });
         return trunk;
-    }
+    }*/
 }
