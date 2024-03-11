@@ -3,26 +3,39 @@ using System.Collections.Generic;
 using UnityEngine;
 using System;
 
-[Serializable]
 public class SplineLSystem : LSystem
 {
-    public float height = 1;
-    public float horizontalVariance = 1;
-    public float width = 1;
-    public float baseRadius = 1;
-    public float tipRadius = 1;
+    //1: unit spline
+    //2: scale
+    //3) radius / time (even this can be followup)
+    private Spline spline;
+    //todo make this an animation curve instead
+
+    //how thick each part of the plant is at full growth
+    public AnimationCurve thicknessCurve;
+
+    //how the plant "approaches" the full thickness
+    public AnimationCurve thicknessMultiplierOverTime;
+
+    public float thicknessMultiplier;
+
     public int verticalSamples = 10;
     public int horizontalSamples = 10;
+    public Transform[] controlPoints;
 
-    public AnimationCurve x;
-    public AnimationCurve y;
-    public AnimationCurve z;
-
-    public AnimationCurve thickness;
+    public void Start(){
+        base.Start();
+        List<Vector3> pts = new List<Vector3>();
+        foreach(Transform t in controlPoints){
+            pts.Add(t.position);
+        }
+        Debug.Log(pts);
+        spline = new CatmullRomSpline(pts, 50);
+    }
 
     public override Vector3 GetRelativePosition(float time)
     {
-        return new Vector3(x.Evaluate(time) * horizontalVariance, y.Evaluate(time) * height, z.Evaluate(time) * horizontalVariance);
+        return spline.Evaluate(time);
     }
 
     public override Mesh MakeSelfMesh(float time)
@@ -32,7 +45,7 @@ public class SplineLSystem : LSystem
         {
             float verticalTime = i / (verticalSamples - 1f);
             Vector3 center = GetRelativePosition(verticalTime * time);
-            float radius = thickness.Evaluate(verticalTime * time) * time * width;
+            float radius = thicknessCurve.Evaluate(verticalTime) * thicknessMultiplierOverTime.Evaluate(time) * thicknessMultiplier;
             List<Vector3> points = new List<Vector3>();
             for(int j = 0;j<horizontalSamples;j++)
             {

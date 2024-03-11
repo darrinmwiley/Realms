@@ -1,9 +1,11 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-public static class CatmullRomSpline
+public class CatmullRomSpline : Spline
 {
-    public static List<Vector3> CreateSpline(List<Vector3> controlPoints, int pointsBetweenControlPoints)
+    public CatmullRomSpline(List<Vector3> controlPoints, int pointsBetweenControlPoints) : base(controlPoints, pointsBetweenControlPoints){}
+
+    public override List<Vector3> CreateSpline(List<Vector3> controlPoints, int pointsBetweenControlPoints)
     {
         List<Vector3> splinePoints = new List<Vector3>();
 
@@ -26,7 +28,7 @@ public static class CatmullRomSpline
         return splinePoints;
     }
 
-    private static Vector3 CatmullRom(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float t)
+    private Vector3 CatmullRom(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float t)
     {
         float t2 = t * t;
         float t3 = t2 * t;

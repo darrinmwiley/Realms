@@ -14,7 +14,7 @@ public class LSystem : MonoBehaviour
     //Normalized to parent grow time
     public float growTime;
     //local rotation relative to the direction of the parent at startTime
-    public Quaternion localRotation;
+    public Vector3 localRotation;
     //local position relative to the direction of the parent at startTime
     public Vector3 localPosition;
     //local scale relative to parent
@@ -28,8 +28,26 @@ public class LSystem : MonoBehaviour
     private Quaternion rotation;
     //segment absolute scale
     private float scale = 1;
+
+    public LSystem parent;
     private List<LSystem> subSystems = new List<LSystem>();
     //TODO add parent field
+
+    public void Awake(){
+        
+    }
+
+    public void Start(){
+        if(parent != null)
+        {
+            parent.AddSubSystem(this);
+        }
+    }
+
+    public Quaternion LocalRotation()
+    {
+        return Quaternion.Euler(localRotation.x, localRotation.y, localRotation.z);
+    }
 
     //this is relative to L system growth time - 
     // i.e. if getTotalTime returns 3, although this LSystem will be fully developed at time T, all children won't until 3T
@@ -93,7 +111,7 @@ public class LSystem : MonoBehaviour
                 Mesh subMesh = sub.MakeMesh(subTime);
                 Vector3 origin = GetRelativePosition(sub.startOffset) + sub.localPosition;
                 Quaternion parentDirection = GetDirection(sub.startOffset);
-                Quaternion rotation = parentDirection * sub.localRotation;
+                Quaternion rotation = parentDirection * sub.LocalRotation();
                 Mesh m = MeshUtils.Adjust(subMesh, origin, rotation, scale * sub.localScale);
                 meshes.Add(subMesh);
             }
@@ -115,7 +133,7 @@ public class LSystem : MonoBehaviour
                 Mesh subMesh = sub.MakeMesh(subTime);
                 Vector3 origin = GetRelativePosition(sub.startOffset) + sub.localPosition;
                 Quaternion parentDirection = GetDirection(sub.startOffset);
-                Quaternion rotation = parentDirection * sub.localRotation;
+                Quaternion rotation = parentDirection * sub.LocalRotation();
                 Mesh m = MeshUtils.Adjust(subMesh, origin, rotation, scale * sub.localScale);
                 meshes.Add(subMesh);
             }
@@ -136,7 +154,7 @@ public class LSystem : MonoBehaviour
         foreach(LSystem sub in subSystems)
         {
             sub.origin = GetAbsolutePosition(sub.startOffset) + sub.localPosition;
-            sub.rotation = GetDirection(sub.startOffset) * sub.localRotation;
+            sub.rotation = GetDirection(sub.startOffset) * sub.LocalRotation();
             sub.scale = scale * sub.localScale;
         }
     }
