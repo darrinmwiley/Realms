@@ -1,14 +1,14 @@
 using UnityEngine;
 using UnityEditor;
 
-[CustomEditor(typeof(Plant))]
+[CustomEditor(typeof(TreeLSystemSpec))]
 public class PlantEdior : Editor
 {
     public override void OnInspectorGUI()
     {
         base.OnInspectorGUI();
 
-        Plant plant = (Plant)target;
+        TreeLSystemSpec plant = (TreeLSystemSpec)target;
 
         EditorGUI.BeginChangeCheck(); // Start checking for changes
 

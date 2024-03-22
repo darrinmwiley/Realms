@@ -33,10 +33,10 @@ public abstract class Spline
                 R = M;
             }
         }
-        if(M == points.Count - 1)
-            return points[M];
-        float lerpPercentage = (targetArcLength - arcLength[M]) / (arcLength[M + 1] - arcLength[M]);
-        return Vector3.Lerp(points[M], points[M+1], lerpPercentage);
+        if(L == points.Count - 1)
+            return points[L];
+        float lerpPercentage = (targetArcLength - arcLength[L]) / (arcLength[L + 1] - arcLength[L]);
+        return Vector3.Lerp(points[L], points[L+1], lerpPercentage);
     }
 
 }

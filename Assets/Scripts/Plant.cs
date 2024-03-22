@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Plant : MonoBehaviour
 {
-    [SerializeField]
+    /*[SerializeField]
     public Material mat;
     public float growTime;
 
@@ -63,7 +63,7 @@ public class Plant : MonoBehaviour
         }
         for(int i = 0;i<meshes.Count;i++)
             components[i].GetComponent<MeshFilter>().mesh = meshes[i];*/
-        meshFilter.mesh = root.MakeMesh(time * root.GetTotalTime());
+        /*meshFilter.mesh = root.MakeMesh(time * root.GetTotalTime());
     }
 
     public void SetTime(float time)
@@ -75,5 +75,5 @@ public class Plant : MonoBehaviour
     public float GetTime()
     {
         return time;
-    }
+    }*/
 }
