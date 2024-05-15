@@ -89,7 +89,6 @@ public class SplineLSystem : LSystem
         {
             float verticalTime = i / (verticalSamples - 1f);
             Vector3 center = GetRelativePosition(time, verticalTime);
-            Debug.Log("time: "+time);
             float radius = thicknessCurve.Evaluate(time * verticalTime);
             List<Vector3> points = new List<Vector3>();
             for(int j = 0;j<horizontalSamples;j++)

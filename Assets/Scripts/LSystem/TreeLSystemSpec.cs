@@ -28,7 +28,7 @@ public class TreeLSystemSpec : MonoBehaviour
     public float branchRotation = 137.5f;
     public int numBranches = 4;
     public float height = 10;
-    public float baseWidth = 1;
+    public float baseWidth = 3;
     //if generations is zero, don't make more sub-branches
     public int generations = 1;
 
@@ -52,8 +52,10 @@ public class TreeLSystemSpec : MonoBehaviour
         thicknessCurve.AddKey(new Keyframe(.8f,baseWidth * .8f));
         thicknessCurve.AddKey(new Keyframe(1,0));
         List<Vector3> controlPoints = new List<Vector3>(){new Vector3(0,0,0), new Vector3(0,height,0)};
-        lSystem = new SplineLSystemBuilder()
-            .SetSpline(new CatmullRomSpline(controlPoints, 50))
+        lSystem = new SegmentedLSystemBuilder()
+            .SetNumSegments(4)
+            .SetSpline(MakeTreeSpline())
+            .SetVerticalSamples(50)
             .SetThicknessCurve(thicknessCurve)
             .Build();
         lSystem.SetMaterial(mat);
@@ -72,17 +74,34 @@ public class TreeLSystemSpec : MonoBehaviour
             branchCurve.AddKey(new Keyframe(1,0));
             float time = Random.Range(minBranchHeight, maxBranchHeight);
             float thetaY = branchRotation * i;
-            LSystem sub = new SplineLSystemBuilder()
-                .SetSpline(new CatmullRomSpline(controlPoints, 5))
+            LSystem sub = new SegmentedLSystemBuilder()
+                .SetNumSegments(10)
+                .SetSpline(MakeTreeSpline())
                 .SetThicknessCurve(branchCurve)
                 .SetLocalScale(.5f)
                 .SetLocalRotation(new Vector3(60, thetaY, 0))
-                .SetStartTime(time)
+                .SetStartTime(.9f)
                 .SetStartOffset(time)
                 .Build();
             lSystem.AddSubSystem(sub);
             sub.SetMaterial(mat);
         }
+    }
+
+    public Spline MakeTreeSpline()
+    {
+        float noise = .3f;
+        int numPoints = 10;
+        List<Vector3> controlPoints = new List<Vector3>();
+        controlPoints.Add(new Vector3(0,0,0));
+        float dh = height / (numPoints - 1f);
+        for(int i = 1;i<numPoints;i++)
+        {
+            float xDeviation = Random.Range(-noise, noise);
+            float zDeviation = Random.Range(-noise, noise);
+            controlPoints.Add(new Vector3(controlPoints[i - 1].x + xDeviation * dh, i * dh, controlPoints[i-1].z + zDeviation * dh));
+        }
+        return new CatmullRomSpline(controlPoints,50);
     }
 
     void Update()

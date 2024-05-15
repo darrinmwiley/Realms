@@ -2544,12 +2544,12 @@ MonoBehaviour:
   minBranchHeight: 0.5
   maxBranchHeight: 0.8
   branchRotation: 137.5
-  numBranches: 8
+  numBranches: 3
   height: 10
-  baseWidth: 0.1
+  baseWidth: 0.5
   generations: 1
   mat: {fileID: 2100000, guid: d3bdcb92a9f7f324e964fe5c7f39df24, type: 2}
-  growTime: 5
+  growTime: 1
   growing: 0
 --- !u!1 &1732625490
 GameObject:

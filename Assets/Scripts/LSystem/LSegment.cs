@@ -3,14 +3,13 @@ using System.Collections.Generic;
 using UnityEngine;
 using System;
 
-public class SegmentedLSystem : SplineLSystem
+public class LSegment// : LSystem
 {
-    public int numSegments;
-
-    private List<GameObject> segments;
-
-    //joints[i] is the joint between segment i and segment i + 1
-    private List<ConfigurableJoint> joints;
+}
+    // LSegment just a spline LSystem with straight line from point A to point B, potentially with joints on it in places
+    // L Segment for now is gonna be an L System with a body and physics
+/*
+    public GameObject gameObject;
 
     //first, just have them fixed
     //second, add fixed joints and only have the bottom be fixed
@@ -43,12 +42,11 @@ public class SegmentedLSystem : SplineLSystem
         : base(startTime, startOffset, growTime, localRotation, localPosition, scale, parent, spline, thicknessCurve, verticalSamples, horizontalSamples){
         this.numSegments = numSegments;
         segments = new List<GameObject>();
-        joints = new List<ConfigurableJoint>();
+        joints = new List<GameObject>();
         gameObject.name = "Segmented L-System";
         for(int i = 0;i<numSegments;i++)
         {
             GameObject segment = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            segment.AddComponent<Rigidbody>();
             segments.Add(segment);
             segment.name = "segment "+i;
             segment.transform.parent = gameObject.transform;
@@ -74,7 +72,6 @@ public class SegmentedLSystem : SplineLSystem
 
     public void UpdateSegment(int segment, float time, float realTime)
     {
-        //Debug.Log("updating segment "+segment+" "+time);
         if(segment >= numSegments)
             return;
         float timePerSegment = 1f / numSegments;
@@ -115,73 +112,75 @@ public class SegmentedLSystem : SplineLSystem
 
         segments[segment].transform.localRotation = rotation;
 
-        if(time == 1)
+        if(segment != 0 && time == 1)
         {
-            //Debug.Log("about to configure joint for segment "+segment);
-            if(segment == 0)
-            {
-                Debug.Log("setting kinematic");
-                segments[segment].GetComponent<Rigidbody>().isKinematic = true;
+            GameObject joint;
+            
+            if(joints.Count <= segment || joints[segment] == null){
+                joint = new GameObject();
+                joint.name = "joint"+(segment - 1)+'-'+segment;
+                joints.Add(joint);
             }
             else{
-                ConfigurableJoint joint;
-                
-                if(joints.Count <= segment || joints[segment] == null){
-                    joint = segments[segment-1].AddComponent<ConfigurableJoint>();
-                    joints.Add(joint);
-                }
-                else{
-                    joint = joints[segment];
-                }
-                ConfigureJoint(segments[segment], segments[segment - 1],joint, new Vector3(0,1,0));
+                joint = joints[segment];
             }
+            ConfigureJoint(segments[segment], segments[segment - 1],joint, new Vector3(0,1,0));
         }
 
     }
+
     //how do I connect one L system to another via joint
 
     //segments "harden" over time and start retaining their position
     //in formative times they will move towards stimulus (light, moisture, nutrient, surface / stability, )
 
-    //parent anchor given in local coords
-    ConfigurableJoint ConfigureJoint(GameObject child, GameObject parent, ConfigurableJoint joint, Vector3 anchorLocalPosition)
+        //parent anchor given in local coords
+    GameObject ConfigureJoint(GameObject child, GameObject parent,GameObject joint, Vector3 anchorLocalPosition)
     {
-        Rigidbody rigidbody = parent.GetComponent<Rigidbody>();
+        Rigidbody rigidbody = joint.GetComponent<Rigidbody>();
         if(rigidbody == null)
-            rigidbody = parent.AddComponent<Rigidbody>();
-
+            rigidbody = joint.AddComponent<Rigidbody>();
+        rigidbody.isKinematic = true;
+        joint.transform.parent = parent.transform;
+        joint.transform.localPosition = anchorLocalPosition;
+        joint.transform.localRotation = Quaternion.Euler(0,0,0);
+        joint.transform.parent = null;
+        //we want to make parent -> joint a fixed joint
+        FollowGameObjectLocalPosition follow = joint.AddComponent<FollowGameObjectLocalPosition>();
+        follow.toFollow = parent;
+        //need to figure out what to hardcode this to for now
+        follow.localPosition = new Vector3(0,1,0);
+        //and joint -> child a rotator
+        ConfigurableJoint rotator = joint.AddComponent<ConfigurableJoint>();
         Rigidbody childRb = child.GetComponent<Rigidbody>();
-        if(childRb == null){
+        if(childRb == null)
             childRb = child.AddComponent<Rigidbody>();
-        }
-        childRb.drag = 1f;
-        childRb.mass = .001f;
-        joint.connectedBody = childRb;
-        joint.autoConfigureConnectedAnchor = false;
-        joint.anchor = new Vector3(0, 1, 0);
-        joint.connectedAnchor = new Vector3(0,-1,0);
-        joint.axis = new Vector3(0, 1, 0);
-        joint.secondaryAxis = new Vector3(1, 0, 0);
-        joint.xMotion = ConfigurableJointMotion.Locked;
-        joint.yMotion = ConfigurableJointMotion.Locked;
-        joint.zMotion = ConfigurableJointMotion.Locked;
-        joint.angularXMotion = ConfigurableJointMotion.Locked;
-        joint.angularYMotion = ConfigurableJointMotion.Limited;
-        joint.angularZMotion = ConfigurableJointMotion.Limited;
+        rotator.connectedBody = childRb;
+        rotator.autoConfigureConnectedAnchor = false;
+        rotator.anchor = new Vector3(0, 0, 0);
+        rotator.connectedAnchor = new Vector3(0,-1,0);
+        rotator.axis = new Vector3(0, 1, 0);
+        rotator.secondaryAxis = new Vector3(1, 0, 0);
+        rotator.xMotion = ConfigurableJointMotion.Locked;
+        rotator.yMotion = ConfigurableJointMotion.Locked;
+        rotator.zMotion = ConfigurableJointMotion.Locked;
+        rotator.angularXMotion = ConfigurableJointMotion.Locked;
+        rotator.angularYMotion = ConfigurableJointMotion.Limited;
+        rotator.angularZMotion = ConfigurableJointMotion.Limited;
 
         // Set angular Y and Z limits
         SoftJointLimit jointLimit = new SoftJointLimit();
         jointLimit.limit = 60; // 5 degrees limit
-        joint.angularYLimit = jointLimit;
-        joint.angularZLimit = jointLimit;
+        rotator.angularYLimit = jointLimit;
+        rotator.angularZLimit = jointLimit;
 
         // Set rotation drive mode YZ
         JointDrive drive = new JointDrive();
-        drive.positionSpring = 400f; // Small spring force
-        drive.positionDamper = 400f; // Small damper
+        drive.positionSpring = .3f; // Small spring force
+        //drive.positionDamper = 100; // Small damper
         drive.maximumForce = 100;
-        joint.rotationDriveMode = RotationDriveMode.Slerp;
-        joint.slerpDrive = drive;
+        rotator.rotationDriveMode = RotationDriveMode.Slerp;
+        rotator.slerpDrive = drive;
 
         return joint;
     }
@@ -210,6 +209,6 @@ public class SegmentedLSystem : SplineLSystem
         }
         Mesh mesh = new Face(){lines = lines, pointsPerLine = horizontalSamples}.MakeMesh();
         MeshUtils.Flip(mesh);
-        return mesh;*/
+        return mesh;
     }
-}
+}*/
