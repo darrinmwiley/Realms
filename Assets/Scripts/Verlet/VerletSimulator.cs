@@ -17,37 +17,21 @@ public class VerletSimulator : MonoBehaviour
     List<FixedPositionConstraint> fixedPositionConstraints = new List<FixedPositionConstraint>();
     List<Joint> jointConstraints = new List<Joint>();
 
-    public void StartForJointTesting()
-    {
-        Particle particle = AddParticle(new Vector3(0, 0, 0), .1f);
-        Particle particle2 = AddParticle(new Vector3(2, 0, 0), .1f);
-        Particle particle3 = AddParticle(new Vector3(4, 0, 0), .1f);
-        Particle particle4 = AddParticle(new Vector3(6, 0, 0), .1f);
-        Particle particle5 = AddParticle(new Vector3(8, 0, 0), .1f);
-
-        AddFixedPositionConstraint(particle, new Vector3(0, 0, 0));
-        
-        AddJointConstraint(particle, particle2);
-        AddJointConstraint(particle2, particle3);
-        AddJointConstraint(particle3, particle4);
-        AddJointConstraint(particle4, particle5);
-    }
-
     public void RemoveParticle(int id)
     {
         particles.Remove(id);
     }
 
-    public Particle AddParticle(Vector3 position, float radius)
+    public Particle AddParticle(Vector3 position, Quaternion rotation, float radius)
     {
-        Particle p = CreateParticle(position, radius);
+        Particle p = CreateParticle(position, rotation, radius);
         particles.Add(p.id, p);
         return p;
     }
 
-    public Particle CreateParticle(Vector3 position, float radius)
+    public Particle CreateParticle(Vector3 position, Quaternion rotation, float radius)
     {
-        Particle p = new Particle(position, radius);
+        Particle p = new Particle(position,rotation, radius);
         return p;
     }
 
@@ -99,7 +83,7 @@ public class VerletSimulator : MonoBehaviour
             p.position = loc * (2 - drag) - p.previous * (1 - drag) + p.acceleration * timestep * timestep;
             p.previous = newPrev;
             p.ClearForces();
-            p.gameObject.transform.position = p.position;
+            //p.gameObject.transform.position = p.position;
         }
     }
 
@@ -131,7 +115,7 @@ public class VerletSimulator : MonoBehaviour
             
             // Apply the force to the child particle along the plane towards the projected goal position
             j.child.AddForce(projectedGoal.normalized * 5f);
-            j.child.gameObject.GetComponent<ParticleMono>().UpdateRenderers();
+            //j.child.gameObject.GetComponent<ParticleMono>().UpdateRenderers();
         }
     }
 

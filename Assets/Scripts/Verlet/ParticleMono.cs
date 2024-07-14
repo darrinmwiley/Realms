@@ -16,7 +16,7 @@ public class ParticleMono : MonoBehaviour
         // Initialize particle if necessary
         if (particle == null)
         {
-            particle = new Particle(transform.position, 1f); // Example radius
+            particle = new Particle(transform.position,Quaternion.identity, 1f); // Example radius
         }
 
         // Initialize net force line renderer

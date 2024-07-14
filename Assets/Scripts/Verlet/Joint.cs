@@ -20,7 +20,7 @@ public class Joint
         this.parent = parent;
         this.child = child;
         this.initialChildPosition = child.position;
-        this.initialChildPositionParentSpace = parent.gameObject.transform.InverseTransformPoint(child.position);
+        this.initialChildPositionParentSpace = parent.InverseTransformPoint(child.position);
         Debug.Log(initialChildPositionParentSpace);
         //this.initialChildRotationParentSpace = Quaternion.Inverse(parentObject.rotation) * childWorldRotation;
         this.initialDistance = Vector3.Distance(parent.position, child.position);
@@ -85,7 +85,9 @@ public class Joint
         toChild = (child.position - parent.position).normalized;
         toGoal = (GetGoalWorldSpace() - parent.position).normalized;
         angle = Vector3.Angle(toChild, toGoal);
-        child.gameObject.transform.rotation = parent.gameObject.transform.rotation * Quaternion.AngleAxis(angle, Vector3.Cross(toGoal, toChild));
+        child.rotation = parent.rotation * Quaternion.AngleAxis(angle, Vector3.Cross(toGoal, toChild));
+
+        //Debug.Log(parent.gameObject.transform.rotation+" "+parent.rotation);
 
         if (shouldRender)
         {
@@ -94,7 +96,7 @@ public class Joint
     }
 
     public Vector3 GetGoalWorldSpace(){
-        return parent.gameObject.transform.TransformPoint(initialChildPositionParentSpace);
+        return parent.TransformPoint(initialChildPositionParentSpace);
     }
 
     private Quaternion getQuaternionBetween(Vector3 p1, Vector3 p2, Vector3 axisOfRotation)

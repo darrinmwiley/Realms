@@ -58,19 +58,20 @@ public class PlantSkeleton : MonoBehaviour
         public Vert parent;
         public List<Vert> children;
 
-        public Vert(Vector3 location, Vert parent)
+        public Vert(Vector3 position, Vert parent)
         {
-            particle = VerletSimulator.instance.AddParticle(location, .1f);
+            Quaternion rotation = Quaternion.identity;
+            if(parent != null){
+                Vector3 direction = (position - parent.particle.position).normalized;
+                //rotation = Quaternion.LookRotation(direction);
+            }
+            particle = VerletSimulator.instance.AddParticle(position, rotation, .1f);
             this.parent = parent;
             this.children = new List<Vert>();
             if(parent != null)
             {
                 parent.children.Add(this);
                 VerletSimulator.instance.AddJointConstraint(parent.particle, particle);
-                //Vector3 direction = (particle.position - parent.particle.position).normalized;
-                //Quaternion rotation = Quaternion.LookRotation(direction);
-                //Debug.Log(rotation.eulerAngles);
-                //particle.gameObject.transform.rotation = rotation;
             }
         }
     }
