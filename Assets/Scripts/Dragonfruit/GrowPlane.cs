@@ -80,7 +80,7 @@ public class GrowPlane : MonoBehaviour
         TargetPlane targetPlane = targetPlanes[randomSocketIndex,randomTargetPlaneIndex];
         if(targetPlane.used)
             return false;
-        Node node = parent.rings[randomRingIndex][randomSocketIndex];
+        Node2 node = parent.rings[randomRingIndex][randomSocketIndex];
         if(node.used)
             return false;
         node.used = true;

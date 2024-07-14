@@ -5,13 +5,13 @@ using UnityEngine;
 // Base Builder class for LSystem and its subclasses
 public class LSystemBuilder {
     protected float startTime = 0;
+    //offset is a specific way to show "where" along with the "when" (startTime). 
+    //When the need arises, generalize this to a way transform context into <position, rotation>
     protected float startOffset = 0;
     protected float growTime = 1;
     protected Vector3 localRotation = Vector3.zero;
     protected Vector3 localPosition = Vector3.zero;
     protected float localScale = 1; 
-    protected Vector3 origin = Vector3.zero;
-    protected Quaternion rotation = Quaternion.identity;
     protected LSystem parent = null;
 
     public static LSystem GetDefaultInstance()

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Dragonfruit : MonoBehaviour
+public class Dragonfruit2 : MonoBehaviour
 {
     GameObject baseObj;
     List<Segment> segments = new List<Segment>();
@@ -47,7 +47,6 @@ public class Dragonfruit : MonoBehaviour
 
         public float InterpolateOuterRadius(float outerRadiusMin, float outerRadiusMax, float y)
         {
-
             y = (y+.5f)*3%1-.5f;
             return 4 * (outerRadiusMin - outerRadiusMax) * y * y + outerRadiusMax;
         }

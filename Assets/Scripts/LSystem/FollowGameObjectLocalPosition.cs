@@ -12,5 +12,6 @@ public class FollowGameObjectLocalPosition : MonoBehaviour
     void Update()
     {
         transform.position = toFollow.transform.TransformPoint(localPosition);
+        //transform.up = toFollow.transform.up;
     }
 }

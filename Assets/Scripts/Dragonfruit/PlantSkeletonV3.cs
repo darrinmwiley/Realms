@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PlantSkeleton : MonoBehaviour
+public class PlantSkeletonV3 : MonoBehaviour
 {
     GameObject baseObj;
     List<Segment> segments = new List<Segment>();

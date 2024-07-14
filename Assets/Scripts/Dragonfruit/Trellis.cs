@@ -13,7 +13,7 @@ public class Trellis : MonoBehaviour
     {
         GameObject dragonfruitObj = new GameObject("dragonfruit");
         dragonfruitObj.transform.parent = plot.transform;
-        Dragonfruit dragonfruit = dragonfruitObj.AddComponent<Dragonfruit>();
+        Dragonfruit2 dragonfruit = dragonfruitObj.AddComponent<Dragonfruit2>();
         dragonfruit.green = green;
         dragonfruit.SetBase(plot);
         dragonfruit.AddSeed();

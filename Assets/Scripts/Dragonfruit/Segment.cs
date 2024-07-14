@@ -6,7 +6,7 @@ using UnityEngine;
 //TODO: SPLIT LONG SOCKET SEGMENT INTO MULTIPLE
 //todo make this a prefab after unifying mesh
 
-public class Node{
+public class Node2{
     public Vector3 location;
     public bool used;
 }
@@ -28,7 +28,7 @@ public class Segment : MonoBehaviour
     //socket position in parent local space
     Vector3 socketPosition;
 
-    public List<List<Node>> rings = new List<List<Node>>();
+    public List<List<Node2>> rings = new List<List<Node2>>();
     public int distanceFromBridge = -1;
 
     public bool IsGrown(){
@@ -270,7 +270,7 @@ public class Segment : MonoBehaviour
                     localMaximum = true;
                 }
             }
-            List<Node> ring = new List<Node>();
+            List<Node2> ring = new List<Node2>();
             for(int i = 0;i<6;i++)
             {
                 float sin = Mathf.Sin(Mathf.PI / 3 * i);
@@ -280,7 +280,7 @@ public class Segment : MonoBehaviour
                     Vector3 vertex = new Vector3(r * cos, dy * s * height, r * sin);
                     if(localMaximum)
                     {
-                        ring.Add(new Node(){
+                        ring.Add(new Node2(){
                             location = transform.TransformPoint(vertex),
                             used = false,
                         });

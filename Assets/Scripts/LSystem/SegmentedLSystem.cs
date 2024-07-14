@@ -143,6 +143,8 @@ public class SegmentedLSystem : SplineLSystem
     //segments "harden" over time and start retaining their position
     //in formative times they will move towards stimulus (light, moisture, nutrient, surface / stability, )
 
+    //TODO: brainstorm on how to connect sub segments to a specific parent segment
+
     //parent anchor given in local coords
     ConfigurableJoint ConfigureJoint(GameObject child, GameObject parent, ConfigurableJoint joint, Vector3 anchorLocalPosition)
     {
