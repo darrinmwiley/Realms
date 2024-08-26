@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class FollowSegmentLocalPosition : MonoBehaviour
 {
-    public Segment segment;
+    public Segment2 segment;
     public Vector3 localPosition;
 
     void Update()

@@ -2,8 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-//TODO: SEGMENTS SHOULD HAVE AN ABSOLUTE WIDTH
-//TODO: SPLIT LONG SOCKET SEGMENT INTO MULTIPLE
+//TODO: Segment2S SHOULD HAVE AN ABSOLUTE WIDTH
+//TODO: SPLIT LONG SOCKET Segment2 INTO MULTIPLE
 //todo make this a prefab after unifying mesh
 
 public class Node2{
@@ -12,7 +12,7 @@ public class Node2{
 }
 
 
-public class Segment : MonoBehaviour
+public class Segment2 : MonoBehaviour
 {
     public float growTime;
     public float growStartTime = -1;
@@ -23,8 +23,8 @@ public class Segment : MonoBehaviour
     public bool isJointed;
     private bool addedJoint;
 
-    public List<Segment> children = new List<Segment>();
-    public Segment parent;
+    public List<Segment2> children = new List<Segment2>();
+    public Segment2 parent;
     //socket position in parent local space
     Vector3 socketPosition;
 
@@ -97,7 +97,7 @@ public class Segment : MonoBehaviour
         rb.angularDrag = 10.0f;
         rb.mass = .1f;
         rb.isKinematic = shouldSelfBeKinematic;
-        Segment prev = parent;
+        Segment2 prev = parent;
         Rigidbody rb2 = prev.gameObject.GetComponent<Rigidbody>();
         if(rb2 == null)
         {
@@ -135,7 +135,7 @@ public class Segment : MonoBehaviour
     }
 
     //parent anchor given in local coords
-    GameObject ConfigureJoint(Segment child, Segment parent, Vector3 parentAnchor)
+    GameObject ConfigureJoint(Segment2 child, Segment2 parent, Vector3 parentAnchor)
     {
         Debug.Log(parentAnchor);
         GameObject joint = new GameObject("Joint");
@@ -185,7 +185,7 @@ public class Segment : MonoBehaviour
         return joint;
     }
 
-    /*ConfigurableJoint ConfigureJoint(Segment child, Segment parent)
+    /*ConfigurableJoint ConfigureJoint(Segment2 child, Segment2 parent)
     {
         // For all capsules except the bottom one
         GameObject obj = child.gameObject;

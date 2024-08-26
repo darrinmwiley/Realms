@@ -11,7 +11,7 @@ public class Particle
     public Vector3 acceleration;
     public float radius;
     public int id;
-    //public GameObject gameObject;
+    public GameObject gameObject;
     SphereCollider collider;
     MeshRenderer meshRenderer;
     public Rigidbody rb;
@@ -26,6 +26,8 @@ public class Particle
         acceleration = Vector2.zero;
         this.radius = radius;
         id = maxID++;
+        gameObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        gameObject.transform.localScale = new Vector3(.1f, .1f,.1f);
     }
 
     public void AddForce(Vector3 f)

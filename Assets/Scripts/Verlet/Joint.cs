@@ -9,6 +9,7 @@ public class Joint
     public Vector3 initialChildPosition;
     public float initialDistance;
     public Vector3 initialChildPositionParentSpace;
+    Quaternion initialChildRotation;
     public float maxAngle;
     public bool shouldRender = false;
     private GameObject lineObject;
@@ -21,8 +22,7 @@ public class Joint
         this.child = child;
         this.initialChildPosition = child.position;
         this.initialChildPositionParentSpace = parent.InverseTransformPoint(child.position);
-        Debug.Log(initialChildPositionParentSpace);
-        //this.initialChildRotationParentSpace = Quaternion.Inverse(parentObject.rotation) * childWorldRotation;
+        this.initialChildRotation= child.rotation;
         this.initialDistance = Vector3.Distance(parent.position, child.position);
         this.maxAngle = maxAngle;
         this.shouldRender = shouldRender;
@@ -30,7 +30,7 @@ public class Joint
         if (shouldRender)
         {
             InitializeLineRenderer();
-            InitializeGoalPositionSphere();
+            //InitializeGoalPositionSphere();
         }
     }
 
@@ -67,7 +67,7 @@ public class Joint
         //parent.position -= correction;
         child.position += correction;
 
-        goalPositionSphere.transform.position = GetGoalWorldSpace();
+        //goalPositionSphere.transform.position = GetGoalWorldSpace();
 
         //todo: if angle between child -> parent -> goal is > maxAngle, then rotate child back on that plane by the diff.
         Vector3 toChild = (child.position - parent.position).normalized;
@@ -79,15 +79,13 @@ public class Joint
             Quaternion rotationCorrection = Quaternion.AngleAxis(angle - maxAngle, axisOfRotation);
             Vector3 correctedPosition = rotationCorrection * (child.position - parent.position) + parent.position;
             child.position = correctedPosition;
-            goalPositionSphere.transform.position = GetGoalWorldSpace();
+            //goalPositionSphere.transform.position = GetGoalWorldSpace();
         }
 
         toChild = (child.position - parent.position).normalized;
         toGoal = (GetGoalWorldSpace() - parent.position).normalized;
         angle = Vector3.Angle(toChild, toGoal);
-        child.rotation = parent.rotation * Quaternion.AngleAxis(angle, Vector3.Cross(toGoal, toChild));
-
-        //Debug.Log(parent.gameObject.transform.rotation+" "+parent.rotation);
+        child.rotation = initialChildRotation * parent.rotation * Quaternion.AngleAxis(angle, Vector3.Cross(toGoal, toChild));
 
         if (shouldRender)
         {
@@ -97,25 +95,6 @@ public class Joint
 
     public Vector3 GetGoalWorldSpace(){
         return parent.TransformPoint(initialChildPositionParentSpace);
-    }
-
-    private Quaternion getQuaternionBetween(Vector3 p1, Vector3 p2, Vector3 axisOfRotation)
-    {
-        // Normalize the axis of rotation
-        Vector3 axis = axisOfRotation.normalized;
-
-        // Calculate the vector from p1 to p2
-        Vector3 v1 = p1.normalized;
-        Vector3 v2 = p2.normalized;
-
-        // Calculate the angle between the vectors
-        float dotProduct = Vector3.Dot(v1, v2);
-        float angle = Mathf.Acos(dotProduct) * Mathf.Rad2Deg;
-
-        // Create the quaternion representing the rotation
-        Quaternion rotation = Quaternion.AngleAxis(angle, axis);
-
-        return rotation;
     }
 
     private void RenderLine()

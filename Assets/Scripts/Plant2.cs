@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Plant : MonoBehaviour
+public class Plant2 : MonoBehaviour
 {
     /*[SerializeField]
     public Material mat;

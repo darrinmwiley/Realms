@@ -10,25 +10,44 @@ public class ParticleMono : MonoBehaviour
     public Particle particle;
     private List<LineRenderer> forceLineRenderers = new List<LineRenderer>();
     private LineRenderer netForceLineRenderer;
+    private SphereCollider sphereCollider;
+    private Renderer sphereRenderer;
 
     void Start()
     {
         // Initialize particle if necessary
         if (particle == null)
         {
-            particle = new Particle(transform.position,Quaternion.identity, 1f); // Example radius
+            particle = new Particle(transform.position, Quaternion.identity, 1f); // Example radius
         }
 
         // Initialize net force line renderer
         netForceLineRenderer = CreateLineRenderer(Color.red);
+
+        // Initialize and configure the spherical collider
+        sphereCollider = gameObject.AddComponent<SphereCollider>();
+        sphereCollider.radius = particle.radius;
+        sphereCollider.isTrigger = true; // Make it a trigger collider if necessary
+
+        // Initialize and configure the renderer
+        sphereRenderer = gameObject.AddComponent<MeshRenderer>();
+        gameObject.AddComponent<MeshFilter>().mesh = CreateSphereMesh(particle.radius);
+    }
+
+    void Update()
+    {
+        UpdateRenderers();
+        gameObject.transform.position = particle.position;
+        gameObject.transform.rotation = particle.rotation;
     }
 
     public void UpdateRenderers()
     {
-        // Sync the particle position with the GameObject's position
-        //particle.position = transform.position;
+        // Sync the particle position and rotation with the GameObject's position and rotation
+        transform.position = particle.position;
+        transform.rotation = particle.rotation;
 
-        //Update force line renderers
+        // Update force line renderers
         if (showAllForces)
         {
             UpdateForceLineRenderers();
@@ -81,5 +100,14 @@ public class ParticleMono : MonoBehaviour
         lineRenderer.endWidth = 0.05f;
         lineRenderer.positionCount = 2;
         return lineRenderer;
+    }
+
+    private Mesh CreateSphereMesh(float radius)
+    {
+        // Create a simple sphere mesh
+        GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        Mesh mesh = sphere.GetComponent<MeshFilter>().mesh;
+        Destroy(sphere); // Destroy the temporary sphere
+        return mesh;
     }
 }

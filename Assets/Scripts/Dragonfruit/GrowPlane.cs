@@ -9,9 +9,9 @@ public class GrowPlane : MonoBehaviour
     public GameObject planeObject;
     public Material green;
 
-    List<Segment> segments = new List<Segment>();
-    Segment trellisTop;
-    public int numSegments;
+    List<Segment2> Segment2s = new List<Segment2>();
+    Segment2 trellisTop;
+    public int numSegment2s;
 
     public TargetPlane[] left, front, right;
 
@@ -19,52 +19,52 @@ public class GrowPlane : MonoBehaviour
     public int bridgeJoints = 0;
     
     void Start(){
-        CreateSpline(numSegments);
-        trellisTop = segments[segments.Count - 1];
-        segments[0].StartGrowth();
+        CreateSpline(numSegment2s);
+        trellisTop = Segment2s[Segment2s.Count - 1];
+        Segment2s[0].StartGrowth();
     }
 
     void Update(){
         //todo: after we reach the height of the trellis, 
-        //we can pick any socket and add a jointed segment to it
-        for(int i = 0;i<segments.Count - 1;i++)
+        //we can pick any socket and add a jointed Segment2 to it
+        for(int i = 0;i<Segment2s.Count - 1;i++)
         {
-            Segment seg = segments[i];
-            Segment next = segments[i+1];
+            Segment2 seg = Segment2s[i];
+            Segment2 next = Segment2s[i+1];
             if(seg.IsGrown() && next.growStartTime == -1)
             {
                 next.StartGrowth();
             }
         }
-        Segment last = segments[segments.Count - 1];
+        Segment2 last = Segment2s[Segment2s.Count - 1];
         //TODO clean up going from the top of the growplane to the targetplane
         if(trellisTop.IsGrown() && bridgeJoints != 9)
         {
             if(AddBridgeJoint(trellisTop))
                 bridgeJoints++;
         }
-        for(int i = 0;i<segments.Count;i++)
+        for(int i = 0;i<Segment2s.Count;i++)
         {
-            Segment seg = segments[i];
+            Segment2 seg = Segment2s[i];
             if(seg.IsGrown() && seg.distanceFromBridge != -1 && seg.distanceFromBridge < 3 && seg.children.Count == 0)
             {
                 float length = Random.Range(.2f, .4f) * (seg.distanceFromBridge + 1);
-                AddJointedSegment(seg.GetTip(),seg.GetTip() + length * seg.transform.up,seg, seg.distanceFromBridge == 0);
+                AddJointedSegment2(seg.GetTip(),seg.GetTip() + length * seg.transform.up,seg, seg.distanceFromBridge == 0);
             }
         }
-        //if(newAdded && jointsAdded != 4 && segments[segments.Count - 1].IsGrown())
+        //if(newAdded && jointsAdded != 4 && Segment2s[Segment2s.Count - 1].IsGrown())
         //{
-        //    AddJointedSegment();
+        //    AddJointedSegment2();
         //    jointsAdded++;
         //}
     }
 
-    //we'll separate segments into 3 categories: 
-    //plane: vertical segments climbing up the trellis 
+    //we'll separate Segment2s into 3 categories: 
+    //plane: vertical Segment2s climbing up the trellis 
     //bridge: from the top of the trellis to the edge of the trellis
     //umbrella: jointed, hanging off the trellis after the bridge
 
-    bool AddBridgeJoint(Segment parent)
+    bool AddBridgeJoint(Segment2 parent)
     {
         int randomRingIndex = Random.Range(0,parent.rings.Count);
         int randomSocketIndex = Random.Range(0,3);
@@ -87,15 +87,15 @@ public class GrowPlane : MonoBehaviour
         targetPlane.used = true;
         Vector3 start = parent.rings[randomRingIndex][randomSocketIndex].location;
         Vector3 end = targetPlane.RandomPointOnPlane();
-        Segment added = AddJointedSegment(start, end, parent, true, true);
+        Segment2 added = AddJointedSegment2(start, end, parent, true, true);
         added.distanceFromBridge = 0;
         return true;
     }
 
     //for adding with a node
-    public Segment AddJointedSegment(Vector3 start, Vector3 end, Segment parent, bool shouldParentBeKinematic = false, bool shouldSelfBeKinematic = false)
+    public Segment2 AddJointedSegment2(Vector3 start, Vector3 end, Segment2 parent, bool shouldParentBeKinematic = false, bool shouldSelfBeKinematic = false)
     {
-        Segment next = AddCapsule(start, end, parent);
+        Segment2 next = AddCapsule(start, end, parent);
         next.isJointed = true;
         next.AddJoint(shouldParentBeKinematic, shouldSelfBeKinematic);
         next.StartGrowth();
@@ -103,29 +103,29 @@ public class GrowPlane : MonoBehaviour
     } 
 
     //this one is for adding it with the tip
-    public Segment AddJointedSegment(Segment parent)
+    public Segment2 AddJointedSegment2(Segment2 parent)
     {
         float jointLength = .5f;
-        Segment last = segments[segments.Count - 1];
+        Segment2 last = Segment2s[Segment2s.Count - 1];
 
         Vector3 start = last.GetTip();
         Vector3 end = start + jointLength * last.transform.up;
 
-        Segment next = AddCapsule(start, end, last);
+        Segment2 next = AddCapsule(start, end, last);
         next.isJointed = true;
         next.AddJoint();
         next.StartGrowth();
         return next;
     }
 
-    //todo calculate average segment length independently of growplane here to use elsewhere
-    public void CreateSpline(int numSegments)
+    //todo calculate average Segment2 length independently of growplane here to use elsewhere
+    public void CreateSpline(int numSegment2s)
     {
         List<float> heights = new List<float>();
-        float avgSegmentHeight = 1f / (numSegments);
-        for(int i = 1;i<numSegments;i++)
+        float avgSegment2Height = 1f / (numSegment2s);
+        for(int i = 1;i<numSegment2s;i++)
         {
-            heights.Add(avgSegmentHeight * i + Random.Range(-0.25f, 0.25f) * avgSegmentHeight);
+            heights.Add(avgSegment2Height * i + Random.Range(-0.25f, 0.25f) * avgSegment2Height);
         }
         List<Vector3> locations = new List<Vector3>();
         locations.Add(new Vector3(-5,0,0));
@@ -143,28 +143,28 @@ public class GrowPlane : MonoBehaviour
         AddCapsules(transformed);
     }
 
-    public Segment AddCapsule(Vector3 startPoint, Vector3 endPoint, Segment parent)
+    public Segment2 AddCapsule(Vector3 startPoint, Vector3 endPoint, Segment2 parent)
     {
         // Create a capsule
-        GameObject segmentObj = new GameObject("segment");
-        segmentObj.transform.position = (startPoint); // Position it in the middle between the two points
+        GameObject Segment2Obj = new GameObject("Segment2");
+        Segment2Obj.transform.position = (startPoint); // Position it in the middle between the two points
 
         // Scale the capsule
         float height = (startPoint - endPoint).magnitude; // Calculate the distance between the points
 
         // Rotate the capsule to align with the points
-        segmentObj.transform.up = endPoint - startPoint;
-        Segment segment = segmentObj.AddComponent<Segment>();
-        segment.growTime = 4;
-        segment.start = startPoint;
-        segment.end = endPoint;
+        Segment2Obj.transform.up = endPoint - startPoint;
+        Segment2 Segment2 = Segment2Obj.AddComponent<Segment2>();
+        Segment2.growTime = 4;
+        Segment2.start = startPoint;
+        Segment2.end = endPoint;
         if(parent != null){
-            segment.parent = parent;
-            parent.children.Add(segment);
+            Segment2.parent = parent;
+            parent.children.Add(Segment2);
         }
-        segment.Init(green, startPoint);
-        segments.Add(segment);
-        return segment;
+        Segment2.Init(green, startPoint);
+        Segment2s.Add(Segment2);
+        return Segment2;
     }
 
     public void AddCapsules(List<Vector3> locations)
@@ -181,7 +181,7 @@ public class GrowPlane : MonoBehaviour
             Vector3 startPoint = locations[i];
             Vector3 endPoint = locations[i + 1];
 
-            AddCapsule(startPoint, endPoint,i==0?null:segments[i - 1]);
+            AddCapsule(startPoint, endPoint,i==0?null:Segment2s[i - 1]);
 
         }
     }

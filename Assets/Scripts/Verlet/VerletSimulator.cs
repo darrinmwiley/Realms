@@ -83,7 +83,8 @@ public class VerletSimulator : MonoBehaviour
             p.position = loc * (2 - drag) - p.previous * (1 - drag) + p.acceleration * timestep * timestep;
             p.previous = newPrev;
             p.ClearForces();
-            //p.gameObject.transform.position = p.position;
+            p.gameObject.transform.position = p.position;
+            p.gameObject.transform.rotation = p.rotation;
         }
     }
 
@@ -98,6 +99,7 @@ public class VerletSimulator : MonoBehaviour
         {
             spring.ApplyForce();
         }
+        /*
         foreach (Joint j in jointConstraints){
             // Calculate the goal position based on the initial relative position
             Vector3 goalPosition = j.GetGoalWorldSpace();
@@ -116,7 +118,7 @@ public class VerletSimulator : MonoBehaviour
             // Apply the force to the child particle along the plane towards the projected goal position
             j.child.AddForce(projectedGoal.normalized * 5f);
             //j.child.gameObject.GetComponent<ParticleMono>().UpdateRenderers();
-        }
+        }*/
     }
 
     void SatisfyConstraints()
