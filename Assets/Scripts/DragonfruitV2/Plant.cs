@@ -22,8 +22,7 @@ public class Plant : MonoBehaviour
         root = new Vertex(transform.TransformPoint(Vector3.zero));
         root.gameObject.transform.parent = transform;
         root.gameObject.name = "Plant Root";
-        spine = new Segment(root, new Vector3(0,1,0), MakeSpline(10), 5, mat);
-        spine.gameObject.transform.parent = root.gameObject.transform;
+        spine = new Segment(root, Quaternion.Euler(new Vector3(0,1,0)), MakeSpline(10), 2, mat);
     }
 
     public Spline MakeSpline(float length)
@@ -32,14 +31,14 @@ public class Plant : MonoBehaviour
         int numPoints = 10;
         List<Vector3> controlPoints = new List<Vector3>();
         controlPoints.Add(new Vector3(0,0,0));
-        //controlPoints.Add(new Vector3(0,100,0));
-        float dh = length / (numPoints - 1f);
+        controlPoints.Add(new Vector3(0,length,0));
+        /*float dh = length / (numPoints - 1f);
         for(int i = 1;i<numPoints;i++)
         {
             float xDeviation = Random.Range(-noise, noise);
             float zDeviation = Random.Range(-noise, noise);
             controlPoints.Add(new Vector3(controlPoints[i - 1].x + xDeviation * dh, i * dh, controlPoints[i-1].z + zDeviation * dh));
-        }
+        }*/
         return new CatmullRomSpline(controlPoints,1);
     }
 
@@ -51,14 +50,13 @@ public class Plant : MonoBehaviour
         spine.SetGrowth(newGrowthPercentage);
         if(newGrowthPercentage == 1 && child == null)
         {
-            Spline spline = MakeSpline(10);
-            child = spine.AddChild(1f, new Vector3(0,0,1), spline);
-            childTime = Time.time;
+            //Spline spline = MakeSpline(10);
+            //child = spine.AddChild(1f, new Vector3(0,0,1), spline);
+            //childTime = Time.time;
         }
         if(child != null)
         {
             newGrowthPercentage = Mathf.Min(1, child.GetGrowth() + growthAmt);
-            Debug.Log(child.GetGrowth());
             child.SetGrowth(newGrowthPercentage);
         }
     }

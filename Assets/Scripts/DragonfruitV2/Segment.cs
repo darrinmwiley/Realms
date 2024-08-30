@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class Segment{
+
+    //TODO: rework to use quaternion for direction instead of vector3, and alter the joint configuration logic to grow out of forward instead of up
+
     public Spline spline;
     public float scale;
     public int numVertices;
@@ -19,7 +22,7 @@ public class Segment{
     
     private float growth;
 
-    public Segment(Vertex parent, Vector3 direction, Spline spline, int numVertices, Material mat){
+    public Segment(Vertex parent, Quaternion direction, Spline spline, int numVertices, Material mat){
         this.mat = mat;
         this.gameObject = new GameObject("Segment");
         meshFilter = gameObject.AddComponent<MeshFilter>();
@@ -31,7 +34,8 @@ public class Segment{
         //todo make this composite of direction and spline first point
         //or alternatively make it in the same place as parent and just rotating
         float distanceBetweenPoints = 1f / numVertices;
-        root = new Vertex(parent, Vector3.zero, /*immovable = */ false, /*isFixed = */ true);
+        //need to differentiate direction and magnitude for vertex, since we sometimes want to point in a direction but not grow at all
+        root = new Vertex(parent, direction,0, /*immovable = */ false, /*isFixed = */ true);
         root.gameObject.name = "Segment Root";
         gameObject.transform.parent = root.gameObject.transform;
         gameObject.transform.localPosition = Vector3.zero;
@@ -39,7 +43,7 @@ public class Segment{
         vertices.Add(root);
         Vector3 nextPointWorldSpace = root.gameObject.transform.TransformPoint(spline.Evaluate(distanceBetweenPoints));
         Vector3 dir = vertices[vertices.Count - 1].gameObject.transform.InverseTransformPoint(nextPointWorldSpace);
-        vertices.Add(new Vertex(root, dir));     
+        vertices.Add(new Vertex(root, Quaternion.Euler(dir), dir.magnitude));     
     }
 
     public void SetGrowth(float f)
@@ -47,10 +51,14 @@ public class Segment{
         int currentVertex = (int)(growth / (1f / numVertices));
         int currentAfterGrowth = (int)(f / (1f / numVertices));
         float distanceBetweenPoints = 1f / numVertices;
+        if(currentAfterGrowth >= numVertices){
+            UpdateMesh(MakeSplineForMesh(), growth);
+            return;
+        }
         if(currentAfterGrowth > currentVertex)
         {
             Vector3 nextPointWorldSpace = root.gameObject.transform.TransformPoint(spline.Evaluate((currentAfterGrowth + 1) * distanceBetweenPoints));
-            
+            Debug.Log(currentVertex+", "+currentAfterGrowth);
             // Create a small sphere at the nextPointWorldSpace
             /*GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             sphere.transform.position = nextPointWorldSpace;
@@ -60,8 +68,8 @@ public class Segment{
             //make a very small sphere at nextPointWorldSpace, no collider. GameObject primitive style
             Vector3 direction = vertices[vertices.Count - 1].gameObject.transform.InverseTransformPoint(nextPointWorldSpace);
             
-            Vertex added = new Vertex(vertices[vertices.Count - 1], direction);
-            vertices[vertices.Count - 1].SetGrowth(1);;
+            Vertex added = new Vertex(vertices[vertices.Count - 1], Quaternion.Euler(direction), direction.magnitude);
+            vertices[vertices.Count - 1].SetGrowth(1);
             vertices.Add(added);
         }
         float nextVertexGrowthPercentage = (f - (distanceBetweenPoints * currentAfterGrowth)) / distanceBetweenPoints;
@@ -130,9 +138,7 @@ public class Segment{
 
         Vector3 splineDirection = (directionAtPercentPlusEpsilon - directionAtPercentMinusEpsilon).normalized;
 
-        // Step 3: Create a new segment with that vertex as the parent, in the provided direction, relative to the calculated direction
-        Vector3 adjustedDirection = Quaternion.FromToRotation(Vector3.forward, splineDirection) * direction;
-        Segment newChildSegment = new Segment(closestVertex, adjustedDirection, childSpline, numVertices, mat);
+        Segment newChildSegment = new Segment(closestVertex, direction, childSpline, numVertices, mat);
         return newChildSegment;
     }
 

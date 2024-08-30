@@ -10,15 +10,14 @@ using UnityEngine;
         public GameObject gameObject;
         public Vertex parent;
         
-        // this doesn't have to be a unit vector, 
-        // just some relative direction vector in which the next vertex will reach at 100% growth
-        public Vector3 direction;
+        public Quaternion direction;
+        public float magnitude;
+
         public float growth;
 
         //root constructor
         public Vertex(Vector3 location, bool immovable = true){
             growth = 0;
-            this.direction = direction;
             gameObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             gameObject.GetComponent<MeshRenderer>().enabled = false;
             gameObject.transform.position = location;
@@ -33,15 +32,18 @@ using UnityEngine;
         public void SetGrowth(float growthPercentage)
         {
             growth = growthPercentage;
-            gameObject.GetComponent<ArticulationBody>().anchorPosition = - direction * growthPercentage;
-            gameObject.transform.localPosition = direction * growthPercentage;
+            //gameObject.GetComponent<ArticulationBody>().anchorPosition = - direction * growthPercentage * magnitude;
+            gameObject.GetComponent<ArticulationBody>().anchorPosition = new Vector3(0,0, - growthPercentage * magnitude);
+            //gameObject.transform.localPosition = direction * growthPercentage * magnitude;
+            gameObject.transform.localPosition = new Vector3(0,0,growthPercentage * magnitude);
         }
 
         //child constructor
-        public Vertex(Vertex parent, Vector3 direction, bool immovable = false, bool isFixed = false){
+        public Vertex(Vertex parent, Quaternion direction, float magnitude, bool immovable = false, bool isFixed = false){
             growth = 0;
-            this.direction = direction;
-            Vector3 worldPosition = parent.gameObject.transform.TransformPoint(direction);
+            this.magnitude = magnitude;
+            this.direction = direction.normalized;
+            Vector3 worldPosition = parent.gameObject.transform.position;
             gameObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             gameObject.GetComponent<MeshRenderer>().enabled = false;
             gameObject.transform.position = worldPosition;
@@ -50,16 +52,15 @@ using UnityEngine;
             articulationBody.matchAnchors = false;
             articulationBody.mass = 0.01f;
             articulationBody.jointType = ArticulationJointType.SphericalJoint;
-            if(isFixed){
+            if(isFixed || true){
                 articulationBody.jointType = ArticulationJointType.FixedJoint;
             }
             articulationBody.immovable = immovable;
             if (parent != null)
             {
                 gameObject.transform.parent = parent.gameObject.transform;
-
-                // Set the joint's anchor to be the center of the current sphere
-                articulationBody.anchorPosition = -direction.normalized;
+                Debug.Log(direction);
+                articulationBody.anchorRotation = articulationBody.parentAnchorRotation * Quaternion.LookRotation(direction);
 
                 // Set drive properties for the joint
                 ArticulationDrive xDrive = articulationBody.xDrive;
