@@ -31,17 +31,21 @@ public class Segment{
         //todo make this composite of direction and spline first point
         //or alternatively make it in the same place as parent and just rotating
         float distanceBetweenPoints = 1f / numVertices;
-        root = new Vertex(parent, Vector3.zero, /*immovable = */ false, /*isFixed = */ true);
+        root = new Vertex(parent, direction, 0, /*immovable = */ false, /*isFixed = */  true);
         root.gameObject.name = "Segment Root";
         gameObject.transform.parent = root.gameObject.transform;
         gameObject.transform.localPosition = Vector3.zero;
         root.SetGrowth(1);    
         vertices.Add(root);
-        if(direction != Vector3.zero)
-            root.gameObject.GetComponent<ArticulationBody>().anchorRotation = Quaternion.LookRotation(direction);
+        if(direction != Vector3.up)
+            root.gameObject.GetComponent<ArticulationBody>().anchorRotation = /*Quaternion.Euler(90,0,0) **/ Quaternion.LookRotation(direction);
+        else{
+            root.gameObject.GetComponent<ArticulationBody>().parentAnchorRotation = Quaternion.identity;
+            root.gameObject.GetComponent<ArticulationBody>().anchorRotation = Quaternion.identity;
+        }
         Vector3 nextPointWorldSpace = root.gameObject.transform.TransformPoint(spline.Evaluate(distanceBetweenPoints));
         Vector3 dir = vertices[vertices.Count - 1].gameObject.transform.InverseTransformPoint(nextPointWorldSpace);
-        vertices.Add(new Vertex(root, dir));     
+        vertices.Add(new Vertex(root, dir, dir.magnitude, false, false));     
     }
 
     public void SetGrowth(float f)
@@ -56,7 +60,11 @@ public class Segment{
         if(currentAfterGrowth > currentVertex)
         {
             Vector3 nextPointWorldSpace = root.gameObject.transform.TransformPoint(spline.Evaluate((currentAfterGrowth + 1) * distanceBetweenPoints));
-            
+            Vector3 currentPointWorldSpace = root.gameObject.transform.TransformPoint(spline.Evaluate((currentAfterGrowth) * distanceBetweenPoints));
+            Vector3 delta = spline.Evaluate((currentAfterGrowth + 1) * distanceBetweenPoints) - spline.Evaluate(currentAfterGrowth * distanceBetweenPoints);
+            Debug.Log(currentAfterGrowth+" "+delta); 
+            //1) calculate direction of (current - epsilon)..(current+epsilon)
+            //2) calculate directon of  (current, next)
             // Create a small sphere at the nextPointWorldSpace
             /*GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             sphere.transform.position = nextPointWorldSpace;
@@ -66,7 +74,7 @@ public class Segment{
             //make a very small sphere at nextPointWorldSpace, no collider. GameObject primitive style
             Vector3 direction = vertices[vertices.Count - 1].gameObject.transform.InverseTransformPoint(nextPointWorldSpace);
             
-            Vertex added = new Vertex(vertices[vertices.Count - 1], direction);
+            Vertex added = new Vertex(vertices[vertices.Count - 1], delta, delta.magnitude, false, false);
             vertices[vertices.Count - 1].SetGrowth(1);;
             vertices.Add(added);
         }
