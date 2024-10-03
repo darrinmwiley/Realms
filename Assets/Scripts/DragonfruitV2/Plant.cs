@@ -26,7 +26,7 @@ public class Plant : MonoBehaviour
         root = new Vertex(transform.TransformPoint(Vector3.zero));
         root.gameObject.transform.parent = transform;
         root.gameObject.name = "Plant Root";
-        spine = new Segment(root, Vector3.up, MakeSpline(5), 5, mat);
+        spine = new Segment(root, new Vector3(1,0,0), MakeSpline(5), 2, mat);
     }
 
     public Spline MakeSpline(float length)
@@ -47,11 +47,13 @@ public class Plant : MonoBehaviour
     }
 
 
-    void Update()
+    void FixedUpdate()
     {
+        if(1 == 1)
+            return;
         float growthAmt = Time.deltaTime / growthTime;
         float newGrowthPercentage = Mathf.Min(1, spine.GetGrowth() + growthAmt);
-        spine.SetGrowth(newGrowthPercentage);
+        //spine.SetGrowth(newGrowthPercentage);
         if(newGrowthPercentage == 1 && child == null)
         {
             Spline spline = MakeSpline(4);
@@ -61,7 +63,7 @@ public class Plant : MonoBehaviour
         if(child != null)
         {
             newGrowthPercentage = Mathf.Min(1, child.GetGrowth() + growthAmt);
-            child.SetGrowth(newGrowthPercentage);
+            //child.SetGrowth(newGrowthPercentage);
         }
     }
 }

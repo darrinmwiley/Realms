@@ -18,6 +18,7 @@ using UnityEngine;
 
         //root constructor
         public Vertex(Vector3 location, bool immovable = true){
+            Debug.Log("location: "+location);
             growth = 0;
             this.direction = direction;
             gameObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -25,7 +26,6 @@ using UnityEngine;
             gameObject.transform.position = location;
             gameObject.transform.localScale = new Vector3(1f,1f,1f);
             ArticulationBody articulationBody = gameObject.AddComponent<ArticulationBody>();
-            articulationBody.matchAnchors = false;
             articulationBody.mass = 0.01f;
             articulationBody.jointType = ArticulationJointType.SphericalJoint;
             //articulationBody.jointType = ArticulationJointType.FixedJoint;
@@ -35,7 +35,7 @@ using UnityEngine;
         public void SetGrowth(float growthPercentage)
         {
             growth = growthPercentage;
-            gameObject.GetComponent<ArticulationBody>().anchorPosition = -direction * growthPercentage * magnitude;
+            gameObject.GetComponent<ArticulationBody>().anchorPosition = new Vector3(0,0,-1) * growthPercentage * magnitude;
             gameObject.transform.localPosition = direction * growthPercentage * magnitude;
         }
 
@@ -48,9 +48,10 @@ using UnityEngine;
             gameObject.GetComponent<MeshRenderer>().enabled = false;
             gameObject.transform.localScale = new Vector3(1f,1f,1f);
             ArticulationBody articulationBody = gameObject.AddComponent<ArticulationBody>();
-            articulationBody.matchAnchors = false;
+            //articulationBody.matchAnchors = false;
             articulationBody.mass = 0.01f;
             articulationBody.jointType = ArticulationJointType.SphericalJoint;
+            gameObject.GetComponent<Collider>().enabled = false;
             if(isFixed){
                 articulationBody.jointType = ArticulationJointType.FixedJoint;
             }
@@ -59,24 +60,16 @@ using UnityEngine;
             {
                 gameObject.transform.parent = parent.gameObject.transform;
 
-                // Calculate a perpendicular vector to 'direction' using cross product
-                Vector3 referenceAxis = Vector3.up;  // Can use Vector3.up, or any other vector not parallel to 'direction'
-                if (Mathf.Abs(Vector3.Dot(direction.normalized, Vector3.up)) > 0.99f)
-                {
-                    // If 'direction' is close to 'up', use another reference axis like Vector3.forward
-                    referenceAxis = Vector3.forward;
-                }
-                Vector3 perpendicular = Vector3.Cross(direction.normalized, referenceAxis).normalized;
-
                 // Set the anchor position at the center of the sphere
                 articulationBody.anchorPosition = Vector3.zero;
 
                 // Create a quaternion that aligns the up direction with the 'direction' vector
                 // and the forward direction with the calculated perpendicular vector
-                articulationBody.anchorRotation = Quaternion.LookRotation(perpendicular, direction);
+                articulationBody.anchorRotation = Quaternion.LookRotation(direction);
+                //gameObject.transform.localRotation = articulationBody.anchorRotation;
 
                 // Set the parent's anchor rotation to match the child's anchor rotation
-                articulationBody.parentAnchorRotation = articulationBody.anchorRotation;
+                //articulationBody.parentAnchorRotation = articulationBody.anchorRotation;
                 
                 // Set drive properties for the joint
                 ArticulationDrive xDrive = articulationBody.xDrive;
