@@ -34,7 +34,7 @@ public class PlantV2 : MonoBehaviour
         }
 
         // Create the first segment of the spine
-        spine = new SegmentV2(root, Vector3.up, MakeSpline(5), 5, mat);
+        spine = new SegmentV2(root, Vector3.up, MakeSpline(5), 5, 0, mat);
     }
 
     public Spline MakeSpline(float length)

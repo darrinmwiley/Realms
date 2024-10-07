@@ -7,10 +7,13 @@ public class PlantSpine : MonoBehaviour
     public GameObject root; // Root of the plant
     public Vector3 initialDirection = Vector3.up; // Direction of the plant's growth (upward)
     public float directionVariance = 15f; // Variance in direction for randomness
-    public float flexibility = 45f;
-    public float strength = 10f;
+    public float flexibility = 15f;
+    public float strength = 50f;
     public float magnitude = 2f;
-    public float growTime = 3f;
+
+    // Lists to track growth times and start times for each Growth segment
+    public List<float> growTimes = new List<float>();
+    public List<float> growStartTimes = new List<float>();
 
     private List<Growth> growths = new List<Growth>();
 
@@ -18,8 +21,12 @@ public class PlantSpine : MonoBehaviour
     {
         // Initialize the first Growth
         Vector3 initialGrowthDirection = initialDirection + GetRandomVariance();
-        Growth initialGrowth = new Growth(root, initialGrowthDirection, true, flexibility, strength, magnitude, growTime);
+        Growth initialGrowth = new Growth(root, initialGrowthDirection, true, flexibility, strength, magnitude);
+
+        // Set the initial grow time and start time
         growths.Add(initialGrowth);
+        growTimes.Add(3f); // You can set a default grow time here
+        growStartTimes.Add(Time.time); // Record when the growth starts
     }
 
     void Update()
@@ -29,9 +36,10 @@ public class PlantSpine : MonoBehaviour
         {
             // Get the topmost growth
             Growth topGrowth = growths[growths.Count - 1];
+            int topGrowthIndex = growths.Count - 1;
 
-            // If the top growth is growing, update it
-            float growthProgress = (Time.time - topGrowth.growStartTime) / growTime;
+            // Calculate growth progress based on the time elapsed since growStartTime
+            float growthProgress = (Time.time - growStartTimes[topGrowthIndex]) / growTimes[topGrowthIndex];
             topGrowth.SetGrowth(growthProgress);
 
             // If the top growth is fully grown, add a new Growth segment
@@ -50,12 +58,12 @@ public class PlantSpine : MonoBehaviour
         Vector3 newGrowthDirection = initialDirection + GetRandomVariance();
 
         // Create a new Growth segment, anchored to the growJoint of the previous growth
-        Growth newGrowth = new Growth(previousGrowJoint, newGrowthDirection, true, flexibility, strength, magnitude, growTime);
-        newGrowth.growing = true; // Set the new growth to start growing
-        newGrowth.growStartTime = Time.time; // Record when the new growth starts
-
-        // Add the new Growth to the list
+        Growth newGrowth = new Growth(previousGrowJoint, newGrowthDirection, true, flexibility, strength, magnitude);
+        
+        // Set the new growth to start growing and add its time properties
         growths.Add(newGrowth);
+        growTimes.Add(3f); // Assign the grow time for the new growth
+        growStartTimes.Add(Time.time); // Record when the new growth starts
     }
 
     // Method to introduce randomness in growth direction

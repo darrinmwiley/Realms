@@ -19,7 +19,19 @@ public class SegmentV2
 
     private float growth;
 
-    public SegmentV2(GameObject parent, Vector3 direction, Spline spline, int numVertices, Material mat)
+    private float flexibility;
+
+    //todo: make magnitude calculations based on the spline instead of hardcoding 2
+    //todo: make stiffness / flexibility configurable at the segment level
+        // may be useful to ditinguish between stiffness / flexibility in the segment, and at the connection
+        // configure mass to prevent jarring movements when a new growth is added. Have mass scale with growth
+    //next big phase: bring back in the trellis and have the DF grow up it and make umbrella canopy
+        // subtask: dragonfruit grow up surface
+    //todo factor rotateGameObjectTowards helper to some global location
+
+    //direction: which way to face the root offset in relation to parent
+    //spline: should be relative to bend's space
+    public SegmentV2(GameObject parent, Vector3 direction, Spline spline, int numVertices, float flexibility, Material mat)
     {
         this.mat = mat;
         this.gameObject = new GameObject("SegmentV2");
@@ -29,6 +41,7 @@ public class SegmentV2
         this.parent = parent;
         this.numVertices = numVertices;
         this.spline = spline;
+        this.flexibility = flexibility;
 
         // Ensure the parent has an ArticulationBody
         ArticulationBody parentArticulationBody = parent.GetComponent<ArticulationBody>();
@@ -39,7 +52,7 @@ public class SegmentV2
         }
 
         // Create the root growth attached to the parent
-        rootGrowth = new Growth(parent, direction, true, 10f, 1f, 2f, 3f);
+        rootGrowth = new Growth(parent, direction, true, flexibility, 100f, 2f);
         gameObject.transform.parent = rootGrowth.bendJoint.transform;
         gameObject.transform.localPosition = Vector3.zero;
         RotateGameObjectTowards(gameObject, Vector3.up, true);
@@ -66,7 +79,8 @@ public class SegmentV2
 
             // Create new growth segment
             Vector3 direction = growths[growths.Count - 1].growJoint.transform.InverseTransformPoint(nextPointWorldSpace);
-            Growth newGrowth = new Growth(growths[growths.Count - 1].growJoint, delta, true, 15f, 10f, 2f, 3f);
+            float magnitude = Vector3.Distance(growths[growths.Count - 1].growJoint.transform.position, nextPointWorldSpace);
+            Growth newGrowth = new Growth(growths[growths.Count - 1].growJoint, delta, true, flexibility, 50f, magnitude);
             growths[growths.Count - 1].SetGrowth(1);
             growths.Add(newGrowth);
         }
@@ -135,7 +149,7 @@ public class SegmentV2
         int closestGrowthIndex = Mathf.RoundToInt(percent * (growths.Count - 1));
         Growth closestGrowth = growths[closestGrowthIndex];
 
-        SegmentV2 newChildSegment = new SegmentV2(closestGrowth.growJoint, direction, childSpline, numVertices, mat);
+        SegmentV2 newChildSegment = new SegmentV2(closestGrowth.growJoint, direction, childSpline, numVertices, flexibility, mat);
         return newChildSegment;
     }
 
@@ -210,6 +224,7 @@ public class SegmentV2
         mesh.vertices = vertices;
         mesh.triangles = triangles;
         mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
     }
 
     public void RotateGameObjectTowards(GameObject obj, Vector3 direction, bool parentSpace)

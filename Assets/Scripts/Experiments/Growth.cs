@@ -14,26 +14,22 @@ public class Growth
     public float flexibility;
     public float strength;
     public float magnitude;
-    public float growTime;
-    public bool growing;
-    public float growStartTime;
-
-    public bool showJoints = false;
+    public bool showJoints = true;
 
     private int plantLayer;
     private LayerMask plantLayerMask;
 
-    private float mass = .01f;
+    private float mass = .1f;
 
-    public Growth(GameObject anchor, Vector3 direction, bool parentSpace, float flexibility, float strength, float magnitude, float growTime)
+    public Growth(GameObject anchor, Vector3 direction, bool parentSpace, float flexibility, float strength, float magnitude)
     {
+        Debug.Log(anchor.transform.position+" "+direction+" "+magnitude);
         this.anchor = anchor;
         this.direction = direction;
         this.parentSpace = parentSpace;
         this.flexibility = flexibility;
         this.strength = strength;
         this.magnitude = magnitude;
-        this.growTime = growTime;
 
         // Get the layer index for the "Plant" layer
         plantLayer = LayerMask.NameToLayer("Plant");
@@ -81,6 +77,8 @@ public class Growth
         bendArticulation.twistLock = ArticulationDofLock.LockedMotion;
         bendArticulation.swingYLock = ArticulationDofLock.LimitedMotion;
         bendArticulation.swingZLock = ArticulationDofLock.LimitedMotion;
+        bendArticulation.linearDamping = 5;
+        bendArticulation.angularDamping = 5;
         bendArticulation.mass = mass;
 
         ArticulationDrive swingDrive = new ArticulationDrive
@@ -126,7 +124,7 @@ public class Growth
 
     public void RotateGameObjectTowards(GameObject obj, Vector3 direction, bool parentSpace)
     {
-        Vector3 directionToTarget = direction.normalized ;
+        Vector3 directionToTarget = direction.normalized;
 
         if (parentSpace)
         {
