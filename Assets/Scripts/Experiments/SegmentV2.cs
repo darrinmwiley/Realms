@@ -109,7 +109,7 @@ public class SegmentV2
     {
         return .25f;
     }
-
+    
     public float InterpolateOuterRadius(float outerRadiusMin, float outerRadiusMax, float y, float innerRadius, int numSegments)
     {
         if (y < -.3f)

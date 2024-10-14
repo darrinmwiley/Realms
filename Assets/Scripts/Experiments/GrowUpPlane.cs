@@ -8,7 +8,7 @@ public class GrowUpPlane : MonoBehaviour
     public GameObject root; // Root of the plant
     public GameObject plane; // Reference to the plane for the plant to grow up
     public int numPoints = 10; // Number of points to create along the spline
-    public int numSegments = 3; // Number of segments
+    public int numSegments = 1; // Number of segments
     public bool testing = true; // If true, create spheres at control points
     public Material segmentMaterial; // Material for the segments
     public float growthTime = 3f; // Time for each segment to grow
@@ -22,7 +22,7 @@ public class GrowUpPlane : MonoBehaviour
         // Get the list of points
         List<Vector3> points = GeneratePointsOnPlane(plane, numPoints);
 
-        // Split points into segments and create SegmentV2 objects
+        // Split points into segments and create SegmentControlPoints objects
         CreateSegmentsFromPoints(points);
     }
 
@@ -63,49 +63,34 @@ public class GrowUpPlane : MonoBehaviour
         return controlPoints;
     }
 
-    // Method to split points into segments and create SegmentV2 objects
+    // Method to split points into segments and create SegmentControlPoints objects
     private void CreateSegmentsFromPoints(List<Vector3> points)
     {
         int pointsPerSegment = Mathf.CeilToInt((float)points.Count / numSegments);
+        int start = 0;
+        int end = Mathf.Min(start + pointsPerSegment, points.Count);
 
-        //for (int i = 0; i < numSegments; i++)
-        //{
-            // Get the points for this segment
-            int start = 0;
-            int end = Mathf.Min(start + pointsPerSegment, points.Count);
+        List<Vector3> segmentPoints = points.GetRange(start, end - start);
 
-            List<Vector3> segmentPoints = points.GetRange(start, end - start);
-
-
-            List<Vector3> transformedPoints = new List<Vector3>();
-            foreach(Vector3 pt in segmentPoints){
-                transformedPoints.Add(plane.transform.TransformPoint(pt));
-            }
-
-            Debug.Log(String.Join(",", transformedPoints));
-
-            // Convert these points into a Spline
-            Spline segmentSpline = CreateSplineFromPoints(transformedPoints);
-
-
-            // Create a SegmentV2 object using the root's space
-            SegmentControlPoints segment = new SegmentControlPoints(root, transformedPoints, 0, segmentMaterial);
-
-            // Set initial growth to 0
-            segment.SetGrowth(0f);
-
-            // Add the segment to the list
-            segments.Add(segment);
-
-            // Track the start time for the growth of this segment
-            segmentGrowthStartTimes.Add(-1f); // -1 means not started yet
-        //}
-
-        // Start growing the first segment
-        if (segments.Count > 0)
+        List<Vector3> transformedPoints = new List<Vector3>();
+        foreach (Vector3 pt in segmentPoints)
         {
-            segmentGrowthStartTimes[0] = Time.time;
+            transformedPoints.Add(plane.transform.TransformPoint(pt));
         }
+
+        // Create a SegmentControlPoints object using the root's space
+        SegmentControlPoints segment = new SegmentControlPoints(root, transformedPoints, 5, false, segmentMaterial);
+
+        // Set initial growth to 0
+        segment.SetGrowth(0f);
+
+        // Add the segment to the list
+        segments.Add(segment);
+
+        // Track the start time for the growth of this segment
+        segmentGrowthStartTimes.Add(0f); // -1 means not started yet
+
+        segmentGrowthStartTimes[0] = Time.time;
     }
 
     // Helper method to create a spline from a list of points
@@ -150,8 +135,33 @@ public class GrowUpPlane : MonoBehaviour
                 if (growthProgress >= 1f && i == segments.Count - 1)
                 {
                     isGrowing = false;
+                    // Call AddSegment to add a new segment when the last one is fully grown
+                    AddSegment();
                 }
             }
         }
+    }
+
+    // Method to add a new segment between 80% and 100% in an upwards-ish direction using AddChild
+    private void AddSegment()
+    {
+        // Get the last segment
+        SegmentControlPoints lastSegment = segments[segments.Count - 1];
+
+        // Calculate a random point between 80% and 100% of the last segment's length
+        float percentAlongLastSegment = UnityEngine.Random.Range(0.6f, 1.0f);
+
+        // Calculate a direction that is upwards-ish
+        Vector3 upwardsDirection = (Vector3.up + UnityEngine.Random.insideUnitSphere * 0.4f).normalized;
+
+        // Add the new child segment using the AddChild method
+        SegmentControlPoints newSegment = lastSegment.AddChild(percentAlongLastSegment, upwardsDirection * 4, 4, 5, true);
+
+        // Add the new segment to the list
+        segments.Add(newSegment);
+
+        // Start growing the new segment
+        segmentGrowthStartTimes.Add(Time.time);
+        isGrowing = true;
     }
 }

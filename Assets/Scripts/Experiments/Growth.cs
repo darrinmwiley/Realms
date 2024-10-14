@@ -9,6 +9,7 @@ public class Growth
     public GameObject offsetJoint;
     public GameObject bendJoint;
     public GameObject growJoint;
+    public GameObject cylinder;
     public Vector3 direction;
     public bool parentSpace;
     public float flexibility;
@@ -20,6 +21,7 @@ public class Growth
     private LayerMask plantLayerMask;
 
     private float mass = .1f;
+    private float scale = .2f;
 
     public Growth(GameObject anchor, Vector3 direction, bool parentSpace, float flexibility, float strength, float magnitude)
     {
@@ -39,6 +41,7 @@ public class Growth
         ConfigureOffsetJoint();
         ConfigureBendJoint();
         ConfigureGrowJoint();
+        ConfigureCylinder();
 
         if(!showJoints){
             offsetJoint.GetComponent<MeshRenderer>().enabled = false;
@@ -53,6 +56,7 @@ public class Growth
         growJoint.name = "Growth";
         growJoint.transform.parent = bendJoint.transform;
         growJoint.transform.localPosition = Vector3.zero;
+        growJoint.transform.localScale = Vector3.one;
         RotateGameObjectTowards(growJoint, Vector3.up, true);
 
         ArticulationBody growthArticulation = growJoint.AddComponent<ArticulationBody>();
@@ -70,6 +74,7 @@ public class Growth
         bendJoint.transform.parent = offsetJoint.transform;
         bendJoint.transform.localPosition = Vector3.zero;
         bendJoint.name = "Bendy Joint";
+        bendJoint.transform.localScale = Vector3.one;
         RotateGameObjectTowards(bendJoint, Vector3.up, true);
 
         ArticulationBody bendArticulation = bendJoint.AddComponent<ArticulationBody>();
@@ -103,6 +108,7 @@ public class Growth
         offsetJoint.transform.parent = anchor.transform;
         offsetJoint.transform.localPosition = Vector3.zero;
         offsetJoint.name = "Offset Joint";
+        offsetJoint.transform.localScale = Vector3.one;
         RotateGameObjectTowards(offsetJoint, direction, parentSpace);
 
         ArticulationBody anchorArticulation = anchor.GetComponent<ArticulationBody>();
@@ -120,6 +126,27 @@ public class Growth
         // Set layer and exclude collisions
         offsetJoint.layer = plantLayer;
         offsetArticulation.excludeLayers = plantLayerMask;  // Exclude collisions with the "Plant" layer
+    }
+
+    public void ConfigureCylinder()
+    {
+        cylinder = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        cylinder.transform.parent = bendJoint.transform;
+        cylinder.transform.localRotation = Quaternion.Euler(Vector3.zero);
+        //RotateGameObjectTowards(cylinder, Vector3.up, true);
+        cylinder.transform.localPosition = Vector3.zero;
+        cylinder.name = "Cylinder";
+        
+        
+        ArticulationBody cylinderArticulation = cylinder.AddComponent<ArticulationBody>();
+        cylinderArticulation.jointType = ArticulationJointType.FixedJoint;
+        cylinderArticulation.mass = mass;
+        cylinderArticulation.anchorPosition = new Vector3(0,-1, 0);
+
+        // Set layer and exclude collisions
+        cylinder.layer = plantLayer;
+        //cylinder.GetComponent<Collider>().enabled = false;
+        cylinderArticulation.excludeLayers = plantLayerMask;  // Exclude collisions with the "Plant" layer
     }
 
     public void RotateGameObjectTowards(GameObject obj, Vector3 direction, bool parentSpace)
@@ -140,8 +167,14 @@ public class Growth
     {
         Vector3 growthOffset = Vector3.up * magnitude * growthPercentage;
 
+        cylinder.transform.localScale = new Vector3(1,magnitude * growthPercentage / 2, 1);
+        cylinder.transform.localPosition = new Vector3(0, magnitude * growthPercentage / 2, 0);
+        cylinder.GetComponent<ArticulationBody>().anchorPosition = new Vector3(0,-magnitude * growthPercentage / 2,0);
+
         growJoint.transform.localPosition = growthOffset;
 
         growJoint.GetComponent<ArticulationBody>().anchorPosition = -growthOffset;
+
+
     }
 }
