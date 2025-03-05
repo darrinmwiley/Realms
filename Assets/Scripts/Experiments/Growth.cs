@@ -15,7 +15,7 @@ public class Growth
     public float flexibility;
     public float strength;
     public float magnitude;
-    public bool showJoints = true;
+    public bool showJoints = false;
 
     private int plantLayer;
     private LayerMask plantLayerMask;
@@ -23,15 +23,18 @@ public class Growth
     private float mass = .1f;
     private float scale = .2f;
 
-    public Growth(GameObject anchor, Vector3 direction, bool parentSpace, float flexibility, float strength, float magnitude)
+    private bool useGravity;
+
+    public Growth(GameObject anchor, Vector3 direction, bool parentSpace, float flexibility, float strength, float magnitude, bool useGravity = true)
     {
-        Debug.Log(anchor.transform.position+" "+direction+" "+magnitude);
+        Debug.Log(magnitude);
         this.anchor = anchor;
         this.direction = direction;
         this.parentSpace = parentSpace;
         this.flexibility = flexibility;
         this.strength = strength;
         this.magnitude = magnitude;
+        this.useGravity = useGravity;
 
         // Get the layer index for the "Plant" layer
         plantLayer = LayerMask.NameToLayer("Plant");
@@ -47,7 +50,9 @@ public class Growth
             offsetJoint.GetComponent<MeshRenderer>().enabled = false;
             bendJoint.GetComponent<MeshRenderer>().enabled = false;
             growJoint.GetComponent<MeshRenderer>().enabled = false;
+            cylinder.GetComponent<MeshRenderer>().enabled = false;
         }
+        SetGrowth(0);
     }
 
     public void ConfigureGrowJoint()
@@ -62,6 +67,7 @@ public class Growth
         ArticulationBody growthArticulation = growJoint.AddComponent<ArticulationBody>();
         growthArticulation.jointType = ArticulationJointType.FixedJoint;
         growthArticulation.mass = mass;
+        growthArticulation.useGravity = useGravity;
 
         // Set layer and exclude collisions
         growJoint.layer = plantLayer;
@@ -85,6 +91,7 @@ public class Growth
         bendArticulation.linearDamping = 5;
         bendArticulation.angularDamping = 5;
         bendArticulation.mass = mass;
+        bendArticulation.useGravity = useGravity;
 
         ArticulationDrive swingDrive = new ArticulationDrive
         {
@@ -122,6 +129,7 @@ public class Growth
         ArticulationBody offsetArticulation = offsetJoint.AddComponent<ArticulationBody>();
         offsetArticulation.jointType = ArticulationJointType.FixedJoint;
         offsetArticulation.mass = mass;
+        offsetArticulation.useGravity = useGravity;
 
         // Set layer and exclude collisions
         offsetJoint.layer = plantLayer;
@@ -142,6 +150,7 @@ public class Growth
         cylinderArticulation.jointType = ArticulationJointType.FixedJoint;
         cylinderArticulation.mass = mass;
         cylinderArticulation.anchorPosition = new Vector3(0,-1, 0);
+        cylinderArticulation.useGravity = useGravity;
 
         // Set layer and exclude collisions
         cylinder.layer = plantLayer;

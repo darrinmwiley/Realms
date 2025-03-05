@@ -39,4 +39,8 @@ public abstract class Spline
         return Vector3.Lerp(points[L], points[L+1], lerpPercentage);
     }
 
+    public static Spline Direction(Vector3 direction){
+        return new CatmullRomSpline(new List<Vector3>{new Vector3(0,0,0), direction}, 1);
+    }
+
 }

@@ -86,15 +86,63 @@ public static class MeshUtils
 
         return combinedMesh;
     }
+
+    //for now we will assume that both meshes have the same number of vertices and triangles. We can fix this later if it can't be expected.
+    public static void UpdateMesh(Mesh mesh, List<Line> lines, bool looped = false)
+    {
+        // Assuming 'lines' and 'pointsPerLine' are class fields that are already set
+        int pointsPerLine = lines[0].points.Count;
+        int vertexCount = lines.Count * pointsPerLine;
+        int triangleCount = (lines.Count - 1) * (pointsPerLine - (looped ? 0 : 1)) * 2 * 3;
+
+        Vector3[] vertices = new Vector3[vertexCount];
+        int[] triangles = new int[triangleCount];
+        
+        // Fill vertices
+        int v = 0;
+        foreach (Line line in lines)
+        {
+            for (int i = 0; i < pointsPerLine; i++)
+            {
+                vertices[v++] = line.points[i];
+            }
+        }
+        
+        // Fill triangles
+        int t = 0;
+        for (int i = 0; i < lines.Count - 1; i++)
+        {
+            for (int j = 0; j < pointsPerLine - (looped ? 0 : 1); j++)
+            {
+                triangles[t * 3] = i * pointsPerLine + j;
+                triangles[t * 3 + 1] = (i + 1) * pointsPerLine + (j + 1) % pointsPerLine;
+                triangles[t * 3 + 2] = i * pointsPerLine + (j + 1) % pointsPerLine;
+
+                triangles[t * 3 + 3] = i * pointsPerLine + j;
+                triangles[t * 3 + 4] = (i + 1) * pointsPerLine + j;
+                triangles[t * 3 + 5] = (i + 1) * pointsPerLine + (j + 1) % pointsPerLine;
+
+                t += 2;
+            }
+        }
+
+        // Assign to mesh
+        mesh.vertices = vertices;
+        mesh.triangles = triangles;
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+    }
 }
 
 public class Face{
     public List<Line> lines;
     public int pointsPerLine;
 
-    public Mesh MakeMesh(){
+    public Mesh mesh;
+
+    public Mesh MakeMesh(bool looped = false){
         Vector3[] vertices = new Vector3[lines.Count * pointsPerLine];
-        int[] triangles = new int[6 * (pointsPerLine - 1) * (lines.Count - 1)];
+        int[] triangles = new int[6 * (pointsPerLine - (looped ? 0 : 1)) * (lines.Count - 1)];
         int v = 0;
         foreach(Line line in lines)
         {
@@ -106,33 +154,24 @@ public class Face{
         int t = 0;
         for(int i = 0;i<lines.Count - 1;i++)
         {
-            for(int j = 0;j<pointsPerLine - 1;j++)
+            for(int j = 0;j<pointsPerLine - (looped ? 0 : 1);j++)
             {
                 triangles[t*3] = i * pointsPerLine + j;
-                triangles[t*3 + 1] = (i+1) * pointsPerLine + j+1;
-                triangles[t*3 + 2] = i * pointsPerLine + j + 1;
+                triangles[t*3 + 1] = (i+1) * pointsPerLine + (j+1) % pointsPerLine;
+                triangles[t*3 + 2] = i * pointsPerLine + (j + 1) % pointsPerLine;
                 
                 triangles[t*3 + 3] = i * pointsPerLine + j;
                 triangles[t*3 + 4] = (i+1) * pointsPerLine + j;
-                triangles[t*3 + 5] = (i+1) * pointsPerLine + j + 1;
+                triangles[t*3 + 5] = (i+1) * pointsPerLine + (j + 1) % pointsPerLine;
 
                 t += 2;
-
-             /*   triangles[t*3] = i*2;
-                triangles[t*3 + 1] = (i+1) * 2 + 1;
-                triangles[t*3 + 2] = i*2 + 1;
-
-                triangles[t*3 + 3] = i*2;
-                triangles[t*3 + 4] = (i+1) * 2;
-                triangles[t*3 + 5] = (i+1) * 2 + 1;
-
-                t+=2;*/
             }
         }
         Mesh mesh = new Mesh();
         mesh.vertices = vertices;
         mesh.triangles = triangles;
         mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
 
         return mesh;
     }
@@ -140,4 +179,8 @@ public class Face{
 
 public class Line{
     public List<Vector3> points;
+    public Line(List<Vector3> points){
+        this.points = points;
+    }
+    public Line(){}
 }
