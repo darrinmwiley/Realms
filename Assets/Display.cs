@@ -86,7 +86,6 @@ public class Display : MonoBehaviour
     }
 
     public void Update(){
-        Debug.Log(TranslateMouseToTextureCoordinates());
     }
 
     private void FitTextureToScreen()

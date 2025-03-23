@@ -51,7 +51,9 @@ public class CellSim : MonoBehaviour
         // Place one cell for demonstration
         PlaceCell(20, 20, Mathf.RoundToInt(initialRadius), Color.red);
 
-        PlaceCell(40, 40, Mathf.RoundToInt(initialRadius), Color.blue);
+        PlaceCell(30, 40, Mathf.RoundToInt(initialRadius), Color.blue);
+        PlaceCell(40, 40, Mathf.RoundToInt(initialRadius), Color.yellow);
+        PlaceCell(50, 40, Mathf.RoundToInt(initialRadius), Color.green);
     }
 
     void Update()
@@ -128,6 +130,52 @@ public class CellSim : MonoBehaviour
                 c.CenterOfMass = c.SumPosition / c.Area;
             }
         }
+    }
+
+    public float GetPressure(int x, int y, int[,] cellsGrid)
+    {
+        int cid = cellsGrid[x,y];
+        if(cid == 0)
+        {
+            return atmosphericPressure;
+        }
+        Cell c = cells[cid];
+        float p = c.GetPressure();
+        if(IsBoundaryPixel(x,y, cellsGrid))
+        {
+            float dx = x - GetEffectiveCenterOfMass(c).x;
+            float dy = y - GetEffectiveCenterOfMass(c).y;
+            float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+            float desiredRadius = 0f;
+            if (c.Area > 0)
+                desiredRadius = Mathf.Sqrt(c.Area / Mathf.PI);
+
+            float differenceRatio = (desiredRadius - dist) / desiredRadius;
+
+            p += roundnessBonus * differenceRatio;
+        }
+        return p;
+    }
+
+    bool IsBoundaryPixel(int x, int y, int[,] cellsGrid)
+    {
+        int w = display.GetWidth();
+        int h = display.GetHeight();
+        int cid = cellsGrid[x, y];
+        if (cid == 0) return false;
+
+        int[] dxs = { 0, 0, -1, 1 };
+        int[] dys = { -1, 1, 0, 0 };
+
+        for (int i = 0; i < 4; i++)
+        {
+            int nx = x + dxs[i];
+            int ny = y + dys[i];
+            if (nx < 0 || nx >= w || ny < 0 || ny >= h) return true;
+            if (cellsGrid[nx, ny] != cid) return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -248,7 +296,7 @@ public class CellSim : MonoBehaviour
                 int cid = gridState[x, y];
                 if (cid <= 0) continue; 
                 
-                float pHere = localPressure[x, y];
+                float pHere = GetPressure(x, y, nextGrid);
 
                 for (int i = 0; i < 4; i++)
                 {
@@ -263,6 +311,11 @@ public class CellSim : MonoBehaviour
                         if (pHere > pNeighbor + transmissionCost)
                         {
                             nextGrid[nx, ny] = cid;
+                            if(neighborCID != 0)
+                            {
+                                cells[neighborCID].Area--;
+                            }
+                            cells[cid].Area++;
                         }
                     }
                 }
