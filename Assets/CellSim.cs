@@ -269,12 +269,16 @@ public class CellSim : MonoBehaviour
         int[] dxs = { 0, 0, -1, 1 };
         int[] dys = { -1, 1, 0, 0 };
 
-        for (int y = 0; y < h; y++)
+        foreach(var kvp in cells)
         {
-            for (int x = 0; x < w; x++)
+            int cid = kvp.Key;
+            Cell c = kvp.Value;
+            HashSet<Vector2Int> boundaryPixelsCopy = new HashSet<Vector2Int>(c.BoundaryPixels);
+            foreach(var pixel in boundaryPixelsCopy)
             {
-                int cid = gridState[x, y];
-                if (cid <= 0 || cid != nextGrid[x,y]) continue; 
+                int x = pixel.x;
+                int y = pixel.y;
+                if (cid != nextGrid[x,y]) continue; 
                 
                 float pHere = GetPressure(x, y, nextGrid);
 
@@ -316,12 +320,17 @@ public class CellSim : MonoBehaviour
         int[] dxs = { 0, 0, -1, 1 };
         int[] dys = { -1, 1, 0, 0 };
 
-        for (int y = 0; y < h; y++)
+        foreach(var kvp in cells)
         {
-            for (int x = 0; x < w; x++)
+            int cid = kvp.Key;
+            Cell c = kvp.Value;
+            HashSet<Vector2Int> boundaryPixelsCopy = new HashSet<Vector2Int>(c.BoundaryPixels);
+            foreach(var pixel in boundaryPixelsCopy)
             {
-                int cid = gridState[x, y];
-                if (cid == 0 || nextGrid[x,y] != cid) continue; // skip empty or invalid occupant
+                int x = pixel.x;
+                int y = pixel.y;
+
+                if (nextGrid[x,y] != cid) continue; // skip empty or invalid occupant
 
                 float pHere = GetPressure(x, y, nextGrid);
 
