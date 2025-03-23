@@ -85,7 +85,6 @@ public class CellSim : MonoBehaviour
 
     void Update()
     {
-        // 1) Optional: add fluid on left-click
         if (Input.GetMouseButtonDown(0))
         {
             Vector2Int? mp = display.TranslateMouseToTextureCoordinates();
@@ -102,25 +101,7 @@ public class CellSim : MonoBehaviour
             }
         }
 
-        // 3) Recompute each cell's area & center of mass (after last frame's updates)
-        RefreshCellProperties();
-
-        // 5) Perform expansions & contractions in two passes
-        PerformExpansionsAndContractions();
-
-        // 6) Update hover info (debug details)
-        UpdateHoverInfo();
-
-        // 7) Render final result
-        Render();
-    }
-
-    /// <summary>
-    /// Refresh each cell's area & center of mass by scanning the grid.
-    /// This ensures expansions/contractions are reflected in the cell's data.
-    /// </summary>
-    void RefreshCellProperties()
-    {
+        //update center of masses once per tick for stability
         foreach (var kvp in cells)
         {
             Cell c = kvp.Value;
@@ -129,6 +110,9 @@ public class CellSim : MonoBehaviour
                 c.CenterOfMass = c.SumPosition / c.Area;
             }
         }
+        PerformExpansionsAndContractions();
+        UpdateHoverInfo();
+        Render();
     }
 
     public float GetPressure(int x, int y, Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates)
@@ -202,7 +186,14 @@ public class CellSim : MonoBehaviour
         // commit updates
         foreach (var kvp in updates)
         {
-            gridState[kvp.Key] = kvp.Value;
+            if(kvp.Value == 0 && gridState.ContainsKey(kvp.Key))
+            {
+                gridState.Remove(kvp.Key);
+            }
+            else
+            {
+                gridState[kvp.Key] = kvp.Value;
+            }
         }
     }
 
