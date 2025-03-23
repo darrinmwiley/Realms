@@ -19,12 +19,9 @@ public class CellSim : MonoBehaviour
     [Header("Roundness Bonus")]
     public float roundnessBonus = 0.1f; // For occupant boundary squares: +/- this bonus if dist < or > desired radius
 
-    private int[,] gridState;   // 0=empty, else cell ID
+    private Dictionary<Vector2Int, int> gridState;   // 0=empty, else cell ID
     private int nextCellID = 1;
     private Dictionary<int, Cell> cells = new Dictionary<int, Cell>();
-
-    // We'll keep a local pressure array each frame
-    private float[,] localPressure;
 
     // Debug / Hover Info
     private Vector2Int? hoveredPixel = null;
@@ -45,8 +42,7 @@ public class CellSim : MonoBehaviour
 
         int w = display.GetWidth();
         int h = display.GetHeight();
-        gridState = new int[w, h];
-        localPressure = new float[w, h];
+        gridState = new Dictionary<Vector2Int, int>();
 
         // Place one cell for demonstration
         PlaceCell(15, 15, Mathf.RoundToInt(initialRadius), Color.red);
@@ -54,6 +50,37 @@ public class CellSim : MonoBehaviour
         PlaceCell(45, 45, Mathf.RoundToInt(initialRadius), Color.blue);
         PlaceCell(45, 15, Mathf.RoundToInt(initialRadius), Color.yellow);
         PlaceCell(15, 45, Mathf.RoundToInt(initialRadius), Color.green);
+    }
+
+    public int GetCellId(Vector2Int position)
+    {
+        if(gridState.ContainsKey(position))
+        {
+            return gridState[position];
+        }
+        return 0;
+    }
+
+    public Cell GetCellAt(Vector2Int position)
+    {
+        if(GetCellId(position) == 0)
+        {
+            return null;
+        }
+        return cells[GetCellId(position)];
+    }
+
+    public static int GetCellId(Vector2Int position, Dictionary<Vector2Int, int> originalGrid, Dictionary<Vector2Int, int> updates)
+    {
+        if(updates.ContainsKey(position))
+        {
+            return updates[position];
+        }
+        if(originalGrid.ContainsKey(position))
+        {
+            return originalGrid[position];
+        }
+        return 0;
     }
 
     void Update()
@@ -66,7 +93,7 @@ public class CellSim : MonoBehaviour
             {
                 int x = mp.Value.x;
                 int y = mp.Value.y;
-                int cid = gridState[x, y];
+                int cid = GetCellId(new Vector2Int(x, y));
                 if (cid > 0 && cells.ContainsKey(cid))
                 {
                     cells[cid].AddFluid(fluidIncreaseAmount);
@@ -77,9 +104,6 @@ public class CellSim : MonoBehaviour
 
         // 3) Recompute each cell's area & center of mass (after last frame's updates)
         RefreshCellProperties();
-
-        // 4) Compute local pressures (including roundness & movement biases)
-        ComputeLocalPressures();
 
         // 5) Perform expansions & contractions in two passes
         PerformExpansionsAndContractions();
@@ -107,9 +131,9 @@ public class CellSim : MonoBehaviour
         }
     }
 
-    public float GetPressure(int x, int y, int[,] cellsGrid)
+    public float GetPressure(int x, int y, Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates)
     {
-        int cid = cellsGrid[x,y];
+        int cid = GetCellId(new Vector2Int(x, y), original, updates);
         if(x == 0 || y == 0 || x == display.GetWidth() - 1 || y == display.GetHeight() - 1)
         {
             return borderPressure;
@@ -120,7 +144,7 @@ public class CellSim : MonoBehaviour
         }
         Cell c = cells[cid];
         float p = c.GetPressure();
-        if(IsBoundaryPixel(x,y, cellsGrid))
+        if(IsBoundaryPixel(x,y, original, updates))
         {
             float dx = x - GetEffectiveCenterOfMass(c).x;
             float dy = y - GetEffectiveCenterOfMass(c).y;
@@ -137,90 +161,25 @@ public class CellSim : MonoBehaviour
         return p;
     }
 
-    bool IsBoundaryPixel(int x, int y, int[,] cellsGrid)
+    bool IsBoundaryPixel(int x, int y, Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates)
     {
         int w = display.GetWidth();
         int h = display.GetHeight();
-        int cid = cellsGrid[x, y];
+        int cid = GetCellId(new Vector2Int(x, y), original, updates);
         if (cid == 0) return false;
         return cells[cid].BoundaryPixels.Contains(new Vector2Int(x, y));
-    }
 
-    /// <summary>
-    /// Recompute local pressures for occupant & empty squares.
-    /// - border squares => borderPressure
-    /// - empty interior => atmosphericPressure
-    /// - occupant squares => base cell pressure + boundary bonus + direction bias + roundness bonus
-    /// </summary>
-    void ComputeLocalPressures()
-    {
-        int w = display.GetWidth();
-        int h = display.GetHeight();
+        int[] dxs = { 0, 0, -1, 1 };
+        int[] dys = { -1, 1, 0, 0 };
 
-        // First pass: fill empty squares with baseline, occupant squares with placeholder
-        for (int y = 0; y < h; y++)
+        for (int i = 0; i < 4; i++)
         {
-            for (int x = 0; x < w; x++)
-            {
-                bool isBorder = (x == 0 || x == w - 1 || y == 0 || y == h - 1);
-                int cid = gridState[x, y];
-
-                if (cid == 0)
-                {
-                    // empty squares
-                    localPressure[x, y] = (isBorder ? borderPressure : atmosphericPressure);
-                }
-                else
-                {
-                    // occupant squares => we'll define occupant local pressure in second pass
-                    localPressure[x, y] = (isBorder ? borderPressure : 0f);
-                }
-            }
+            int nx = x + dxs[i];
+            int ny = y + dys[i];
+            if (nx < 0 || nx >= w || ny < 0 || ny >= h) return true;
+            if (GetCellId(new Vector2Int(nx, ny), original, updates) != cid) return true;
         }
-
-        // Second pass: occupant squares (not on outer boundary)
-        // Add base pressure, boundary bonus, direction biases, roundness bonus.
-        int width = display.GetWidth();
-        int height = display.GetHeight();
-
-        for (int y = 0; y < height; y++)
-        {
-            for (int x = 0; x < width; x++)
-            {
-                int cid = gridState[x, y];
-                if (cid <= 0) 
-                    continue; // skip empty squares
-                if (!cells.ContainsKey(cid))
-                    continue; // skip unknown occupant
-
-                // occupant is on the grid border => localPressure stays at borderPressure
-                bool isGridEdge = (x == 0 || x == width - 1 || y == 0 || y == height - 1);
-                if (isGridEdge) 
-                    continue;
-
-                Cell c = cells[cid];
-                float occupantPressure = c.GetPressure();
-                float p = occupantPressure;
-
-                // Roundness bonus for occupant boundary squares
-                if (IsBoundaryPixel(x, y))
-                {
-                    float dx = x - GetEffectiveCenterOfMass(c).x;
-                    float dy = y - GetEffectiveCenterOfMass(c).y;
-                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
-
-                    float desiredRadius = 0f;
-                    if (c.Area > 0)
-                        desiredRadius = Mathf.Sqrt(c.Area / Mathf.PI);
-
-                    float differenceRatio = (desiredRadius - dist) / desiredRadius;
-
-                    p += roundnessBonus * differenceRatio;
-                }
-
-                localPressure[x, y] = p;
-            }
-        }
+        return false;
     }
 
     /// <summary>
@@ -234,22 +193,24 @@ public class CellSim : MonoBehaviour
         int h = display.GetHeight();
 
         // Pass 1: expansions
-        int[,] afterExpansion = (int[,])gridState.Clone();
-        ExpandOccupants(afterExpansion);
+        Dictionary<Vector2Int, int> updates = new Dictionary<Vector2Int, int>();
+        ExpandOccupants(gridState, updates);
 
         // Pass 2: contractions
-        int[,] afterContraction = (int[,])afterExpansion.Clone();
-        ContractOccupants(afterContraction);
+        ContractOccupants(gridState, updates);
 
-        // Now adopt the final grid
-        gridState = afterContraction;
+        // commit updates
+        foreach (var kvp in updates)
+        {
+            gridState[kvp.Key] = kvp.Value;
+        }
     }
 
     /// <summary>
     /// occupant -> empty expansions if occupant pressure > neighbor empty pressure + cost
     /// This is occupant squares flowing outward to empty squares.
     /// </summary>
-    void ExpandOccupants(int[,] nextGrid)
+    void ExpandOccupants(Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates)
     {
         int w = display.GetWidth();
         int h = display.GetHeight();
@@ -266,9 +227,9 @@ public class CellSim : MonoBehaviour
             {
                 int x = pixel.x;
                 int y = pixel.y;
-                if (cid != nextGrid[x,y]) continue; 
+                if (cid != GetCellId(new Vector2Int(x, y), original, updates)) continue; 
                 
-                float pHere = GetPressure(x, y, nextGrid);
+                float pHere = GetPressure(x, y, original, updates);
 
                 for (int i = 0; i < 4; i++)
                 {
@@ -276,18 +237,18 @@ public class CellSim : MonoBehaviour
                     int ny = y + dys[i];
                     if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
 
-                    int neighborCID = nextGrid[nx, ny];
+                    int neighborCID = GetCellId(new Vector2Int(nx, ny), original, updates);
                     if (neighborCID != cid) // occupant => empty
                     {
-                        float pNeighbor = GetPressure(nx, ny, nextGrid);
+                        float pNeighbor = GetPressure(nx, ny, original, updates);
                         if (pHere > pNeighbor + transmissionCost)
                         {
-                            nextGrid[nx, ny] = cid;
+                            updates[new Vector2Int(nx, ny)] = cid;
                             if(neighborCID != 0)
                             {
-                                cells[neighborCID].Contract(new Vector2Int(nx, ny), nextGrid);
+                                cells[neighborCID].Contract(new Vector2Int(nx, ny), original, updates);
                             }
-                            cells[cid].Expand(new Vector2Int(nx, ny), nextGrid);
+                            cells[cid].Expand(new Vector2Int(nx, ny), original, updates);
                         }
                     }
                 }
@@ -300,7 +261,7 @@ public class CellSim : MonoBehaviour
     /// This effectively lets occupant squares revert to air if they can't maintain enough pressure
     /// in the presence of a higher pressure empty neighbor.
     /// </summary>
-    void ContractOccupants(int[,] nextGrid)
+    void ContractOccupants(Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates)
     {
         int w = display.GetWidth();
         int h = display.GetHeight();
@@ -318,9 +279,9 @@ public class CellSim : MonoBehaviour
                 int x = pixel.x;
                 int y = pixel.y;
 
-                if (nextGrid[x,y] != cid) continue; // skip empty or invalid occupant
+                if (GetCellId(new Vector2Int(x,y), original, updates) != cid) continue; // skip empty or invalid occupant
 
-                float pHere = GetPressure(x, y, nextGrid);
+                float pHere = GetPressure(x, y, original, updates);
 
                 // If occupant local pressure is too low compared to an adjacent empty neighbor,
                 // revert occupant => empty.
@@ -330,13 +291,13 @@ public class CellSim : MonoBehaviour
                     int ny = y + dys[i];
                     if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
 
-                    if (nextGrid[nx, ny] == 0)
+                    if (GetCellId(new Vector2Int(nx, ny), original, updates) == 0)
                     {
                         if (pHere + transmissionCost < atmosphericPressure)
                         {
                             // occupant can't hold this square => revert to air
-                            nextGrid[x, y] = 0;
-                            cells[cid].Contract(new Vector2Int(x, y), nextGrid);
+                            updates[new Vector2Int(x, y)] = 0;
+                            cells[cid].Contract(new Vector2Int(x, y), original, updates);
                             break; // done with this occupant square
                         }
                     }
@@ -376,9 +337,9 @@ public class CellSim : MonoBehaviour
         {
             int x = hoveredPixel.Value.x;
             int y = hoveredPixel.Value.y;
-            hoveredLocalPressure = localPressure[x, y];
+            hoveredLocalPressure = GetPressure(x, y, gridState, gridState);
 
-            int cid = gridState[x, y];
+            int cid = GetCellId(new Vector2Int(x, y), gridState, gridState);
             if (cid > 0 && cells.ContainsKey(cid))
             {
                 hoveredCellID = cid;
@@ -402,7 +363,7 @@ public class CellSim : MonoBehaviour
         {
             for (int x = 0; x < w; x++)
             {
-                int cid = gridState[x, y];
+                int cid = GetCellId(new Vector2Int(x, y), gridState, gridState);
 
                 bool isGridEdge = (x == 0 || x == w - 1 || y == 0 || y == h - 1);
                 if (cid == 0)
@@ -453,7 +414,7 @@ public class CellSim : MonoBehaviour
     {
         int w = display.GetWidth();
         int h = display.GetHeight();
-        int cid = gridState[x, y];
+        int cid = GetCellId(new Vector2Int(x, y), gridState, gridState);
         if (cid == 0) return false;
 
         return cells[cid].BoundaryPixels.Contains(new Vector2Int(x, y));
@@ -477,7 +438,7 @@ public class CellSim : MonoBehaviour
                 float distSqr = (i - x)*(i - x) + (j - y)*(j - y);
                 if (distSqr <= r*r)
                 {
-                    gridState[i, j] = cellID;
+                    gridState[new Vector2Int(i, j)] = cellID;
                     sumPos += new Vector2(i, j);
                     area++;
                     pixels.Add(new Vector2Int(i,j));
@@ -548,7 +509,7 @@ public class Cell
     // We'll track sum of occupant pixel positions so we can quickly recompute center of mass
     public Vector2 SumPosition { get; set; }
 
-    public Cell(int id, int area, Vector2 centerOfMass, Color color, HashSet<Vector2Int> pixels, int[,] cellsGrid)
+    public Cell(int id, int area, Vector2 centerOfMass, Color color, HashSet<Vector2Int> pixels, Dictionary<Vector2Int, int> cellsGrid)
     {
         ID = id;
         Area = pixels.Count;
@@ -557,7 +518,7 @@ public class Cell
         BoundaryPixels = new HashSet<Vector2Int>();
         foreach(var pixel in pixels){
             SumPosition += pixel;
-            BoundaryAddCheck(pixel, cellsGrid);
+            BoundaryAddCheck(pixel, cellsGrid, cellsGrid);
         }
         FluidContent = area;  // Start with fluid == area
         CenterOfMass = centerOfMass;
@@ -565,7 +526,7 @@ public class Cell
         
     }
 
-    public void BoundaryRemoveCheck(Vector2Int position, int[,] cellsGrid){
+    public void BoundaryRemoveCheck(Vector2Int position, Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates){
         if(!Pixels.Contains(position))
         {
             return;
@@ -578,7 +539,7 @@ public class Cell
         int[] dys = { -1, 1, 0, 0 };
         for(int i = 0;i<4;i++)
         {
-            if(cellsGrid[position.x + dxs[i], position.y + dys[i]] != ID)
+            if(CellSim.GetCellId(new Vector2Int(position.x + dxs[i], position.y + dys[i]), original, updates) != ID)
             {
                 return;
             }
@@ -586,7 +547,7 @@ public class Cell
         BoundaryPixels.Remove(position);
     }
 
-    public void BoundaryAddCheck(Vector2Int position, int[,] cellsGrid)
+    public void BoundaryAddCheck(Vector2Int position, Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates)
     {
         if(!Pixels.Contains(position))
         {
@@ -600,7 +561,7 @@ public class Cell
         int[] dys = { -1, 1, 0, 0 };
         for (int i = 0; i < 4; i++)
         {
-            if (cellsGrid[position.x + dxs[i], position.y + dys[i]] != ID)
+            if (CellSim.GetCellId(new Vector2Int(position.x + dxs[i], position.y + dys[i]), original, updates) != ID)
             {
                 BoundaryPixels.Add(position);
                 return;
@@ -608,7 +569,7 @@ public class Cell
         }
     }
 
-    public void Expand(Vector2Int position, int[,] cellsGrid){
+    public void Expand(Vector2Int position, Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates){
         Pixels.Add(position);
         Area++;
         SumPosition += position;
@@ -617,11 +578,11 @@ public class Cell
         int[] dys = { -1, 1, 0, 0 };
         for( int i = 0;i<4;i++)
         {
-            BoundaryRemoveCheck(new Vector2Int(position.x + dxs[i], position.y + dys[i]), cellsGrid);
+            BoundaryRemoveCheck(new Vector2Int(position.x + dxs[i], position.y + dys[i]), original, updates);
         }
     }
 
-    public void Contract(Vector2Int position, int[,] cellsGrid){
+    public void Contract(Vector2Int position, Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates){
         Pixels.Remove(position);
         Area--;
         SumPosition -= position;
@@ -630,7 +591,7 @@ public class Cell
         int[] dys = { -1, 1, 0, 0 };
         for( int i = 0;i<4;i++)
         {
-            BoundaryAddCheck(new Vector2Int(position.x + dxs[i], position.y + dys[i]), cellsGrid);
+            BoundaryAddCheck(new Vector2Int(position.x + dxs[i], position.y + dys[i]), original, updates);
         }
     }
 
