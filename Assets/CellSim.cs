@@ -143,6 +143,7 @@ public class CellSim : MonoBehaviour
         int h = display.GetHeight();
         int cid = cellsGrid[x, y];
         if (cid == 0) return false;
+        //return cells[cid].BoundaryPixels.Contains(new Vector2Int(x, y));
 
         int[] dxs = { 0, 0, -1, 1 };
         int[] dys = { -1, 1, 0, 0 };
@@ -292,9 +293,9 @@ public class CellSim : MonoBehaviour
                             nextGrid[nx, ny] = cid;
                             if(neighborCID != 0)
                             {
-                                cells[neighborCID].Contract(new Vector2Int(nx, ny));
+                                cells[neighborCID].Contract(new Vector2Int(nx, ny), nextGrid);
                             }
-                            cells[cid].Expand(new Vector2Int(nx, ny));
+                            cells[cid].Expand(new Vector2Int(nx, ny), nextGrid);
                         }
                     }
                 }
@@ -338,7 +339,7 @@ public class CellSim : MonoBehaviour
                         {
                             // occupant can't hold this square => revert to air
                             nextGrid[x, y] = 0;
-                            cells[cid].Contract(new Vector2Int(x, y));
+                            cells[cid].Contract(new Vector2Int(x, y), nextGrid);
                             break; // done with this occupant square
                         }
                     }
@@ -458,17 +459,7 @@ public class CellSim : MonoBehaviour
         int cid = gridState[x, y];
         if (cid == 0) return false;
 
-        int[] dxs = { 0, 0, -1, 1 };
-        int[] dys = { -1, 1, 0, 0 };
-
-        for (int i = 0; i < 4; i++)
-        {
-            int nx = x + dxs[i];
-            int ny = y + dys[i];
-            if (nx < 0 || nx >= w || ny < 0 || ny >= h) return true;
-            if (gridState[nx, ny] != cid) return true;
-        }
-        return false;
+        return cells[cid].BoundaryPixels.Contains(new Vector2Int(x, y));
     }
 
     void PlaceCell(int x, int y, int r, Color c)
@@ -500,7 +491,7 @@ public class CellSim : MonoBehaviour
         if (area > 0)
         {
             Vector2 com = sumPos / area;
-            cells[cellID] = new Cell(cellID, area, com, c, pixels);
+            cells[cellID] = new Cell(cellID, area, com, c, pixels, gridState);
         }
     }
 
@@ -553,35 +544,97 @@ public class Cell
     public Vector2 CenterOfMass { get; set; }
 
     public HashSet<Vector2Int> Pixels {get; set;}
+    public HashSet<Vector2Int> BoundaryPixels {get; set;}
 
     public Color Color { get; set; }
 
     // We'll track sum of occupant pixel positions so we can quickly recompute center of mass
     public Vector2 SumPosition { get; set; }
 
-    public Cell(int id, int area, Vector2 centerOfMass, Color color, HashSet<Vector2Int> pixels)
+    public Cell(int id, int area, Vector2 centerOfMass, Color color, HashSet<Vector2Int> pixels, int[,] cellsGrid)
     {
         ID = id;
         Area = pixels.Count;
         SumPosition = Vector2.zero;
-        foreach(var pixel in pixels)
+        Pixels = pixels;
+        BoundaryPixels = new HashSet<Vector2Int>();
+        foreach(var pixel in pixels){
             SumPosition += pixel;
+            BoundaryAddCheck(pixel, cellsGrid);
+        }
         FluidContent = area;  // Start with fluid == area
         CenterOfMass = centerOfMass;
         Color = color;
-        Pixels = pixels;
+        
     }
 
-    public void Expand(Vector2Int position){
+    public void BoundaryRemoveCheck(Vector2Int position, int[,] cellsGrid){
+        if(!Pixels.Contains(position))
+        {
+            return;
+        }
+        if(!BoundaryPixels.Contains(position))
+        {
+            return;
+        }
+        int[] dxs = { 0, 0, -1, 1 };
+        int[] dys = { -1, 1, 0, 0 };
+        for(int i = 0;i<4;i++)
+        {
+            if(cellsGrid[position.x + dxs[i], position.y + dys[i]] != ID)
+            {
+                return;
+            }
+        }
+        BoundaryPixels.Remove(position);
+    }
+
+    public void BoundaryAddCheck(Vector2Int position, int[,] cellsGrid)
+    {
+        if(!Pixels.Contains(position))
+        {
+            return;
+        }
+        if(BoundaryPixels.Contains(position))
+        {
+            return;
+        }
+        int[] dxs = { 0, 0, -1, 1 };
+        int[] dys = { -1, 1, 0, 0 };
+        for (int i = 0; i < 4; i++)
+        {
+            if (cellsGrid[position.x + dxs[i], position.y + dys[i]] != ID)
+            {
+                BoundaryPixels.Add(position);
+                return;
+            }
+        }
+    }
+
+    public void Expand(Vector2Int position, int[,] cellsGrid){
         Pixels.Add(position);
         Area++;
         SumPosition += position;
+        BoundaryPixels.Add(position);
+        int[] dxs = { 0, 0, -1, 1 };
+        int[] dys = { -1, 1, 0, 0 };
+        for( int i = 0;i<4;i++)
+        {
+            BoundaryRemoveCheck(new Vector2Int(position.x + dxs[i], position.y + dys[i]), cellsGrid);
+        }
     }
 
-    public void Contract(Vector2Int position){
+    public void Contract(Vector2Int position, int[,] cellsGrid){
         Pixels.Remove(position);
         Area--;
         SumPosition -= position;
+        BoundaryPixels.Remove(position);
+        int[] dxs = { 0, 0, -1, 1 };
+        int[] dys = { -1, 1, 0, 0 };
+        for( int i = 0;i<4;i++)
+        {
+            BoundaryAddCheck(new Vector2Int(position.x + dxs[i], position.y + dys[i]), cellsGrid);
+        }
     }
 
     public void AddFluid(float amount)
