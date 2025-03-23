@@ -97,31 +97,6 @@ public class CellSim : MonoBehaviour
     /// </summary>
     void RefreshCellProperties()
     {
-        // Reset each cell's area & sums
-        foreach (var c in cells.Values)
-        {
-            c.Area = 0;
-            c.SumPosition = Vector2.zero;
-        }
-
-        int w = display.GetWidth();
-        int h = display.GetHeight();
-
-        // Tally occupant squares
-        for (int y = 0; y < h; y++)
-        {
-            for (int x = 0; x < w; x++)
-            {
-                int cid = gridState[x, y];
-                if (cid > 0 && cells.ContainsKey(cid))
-                {
-                    cells[cid].Area++;
-                    cells[cid].SumPosition += new Vector2(x, y);
-                }
-            }
-        }
-
-        // Now compute center of mass
         foreach (var kvp in cells)
         {
             Cell c = kvp.Value;
@@ -587,10 +562,12 @@ public class Cell
     public Cell(int id, int area, Vector2 centerOfMass, Color color, HashSet<Vector2Int> pixels)
     {
         ID = id;
-        Area = area;
+        Area = pixels.Count;
+        SumPosition = Vector2.zero;
+        foreach(var pixel in pixels)
+            SumPosition += pixel;
         FluidContent = area;  // Start with fluid == area
         CenterOfMass = centerOfMass;
-        SumPosition = Vector2.zero;
         Color = color;
         Pixels = pixels;
     }
@@ -598,11 +575,13 @@ public class Cell
     public void Expand(Vector2Int position){
         Pixels.Add(position);
         Area++;
+        SumPosition += position;
     }
 
     public void Contract(Vector2Int position){
         Pixels.Remove(position);
         Area--;
+        SumPosition -= position;
     }
 
     public void AddFluid(float amount)
