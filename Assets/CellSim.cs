@@ -343,7 +343,7 @@ public class CellSim : MonoBehaviour
                 int cid = nextGrid[x, y];
                 if (cid <= 0) continue; // skip empty or invalid occupant
 
-                float pHere = localPressure[x, y];
+                float pHere = GetPressure(x, y, nextGrid);
 
                 // If occupant local pressure is too low compared to an adjacent empty neighbor,
                 // revert occupant => empty.
@@ -356,12 +356,11 @@ public class CellSim : MonoBehaviour
                     int neighborCID = nextGrid[nx, ny];
                     if (neighborCID == 0)
                     {
-                        // neighbor is empty => check if occupant is "losing"
-                        float pNeighbor = localPressure[nx, ny];
-                        if (pHere + transmissionCost < pNeighbor)
+                        if (pHere + transmissionCost < atmosphericPressure)
                         {
                             // occupant can't hold this square => revert to air
                             nextGrid[x, y] = 0;
+                            cells[cid].Area--;
                             break; // done with this occupant square
                         }
                     }
