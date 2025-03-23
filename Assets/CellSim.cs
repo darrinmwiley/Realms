@@ -49,11 +49,11 @@ public class CellSim : MonoBehaviour
         localPressure = new float[w, h];
 
         // Place one cell for demonstration
-        PlaceCell(20, 20, Mathf.RoundToInt(initialRadius), Color.red);
+        PlaceCell(15, 15, Mathf.RoundToInt(initialRadius), Color.red);
 
-        PlaceCell(30, 40, Mathf.RoundToInt(initialRadius), Color.blue);
-        PlaceCell(40, 40, Mathf.RoundToInt(initialRadius), Color.yellow);
-        PlaceCell(50, 40, Mathf.RoundToInt(initialRadius), Color.green);
+        PlaceCell(45, 45, Mathf.RoundToInt(initialRadius), Color.blue);
+        PlaceCell(45, 15, Mathf.RoundToInt(initialRadius), Color.yellow);
+        PlaceCell(15, 45, Mathf.RoundToInt(initialRadius), Color.green);
     }
 
     void Update()
@@ -135,6 +135,10 @@ public class CellSim : MonoBehaviour
     public float GetPressure(int x, int y, int[,] cellsGrid)
     {
         int cid = cellsGrid[x,y];
+        if(x == 0 || y == 0 || x == display.GetWidth() - 1 || y == display.GetHeight() - 1)
+        {
+            return borderPressure;
+        }
         if(cid == 0)
         {
             return atmosphericPressure;
@@ -294,7 +298,7 @@ public class CellSim : MonoBehaviour
             for (int x = 0; x < w; x++)
             {
                 int cid = gridState[x, y];
-                if (cid <= 0) continue; 
+                if (cid <= 0 || cid != nextGrid[x,y]) continue; 
                 
                 float pHere = GetPressure(x, y, nextGrid);
 
@@ -304,18 +308,18 @@ public class CellSim : MonoBehaviour
                     int ny = y + dys[i];
                     if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
 
-                    int neighborCID = gridState[nx, ny];
+                    int neighborCID = nextGrid[nx, ny];
                     if (neighborCID != cid) // occupant => empty
                     {
-                        float pNeighbor = localPressure[nx, ny];
+                        float pNeighbor = GetPressure(nx, ny, nextGrid);
                         if (pHere > pNeighbor + transmissionCost)
                         {
                             nextGrid[nx, ny] = cid;
                             if(neighborCID != 0)
                             {
-                                cells[neighborCID].Area--;
+                                cells[neighborCID].Contract(new Vector2Int(nx, ny));
                             }
-                            cells[cid].Area++;
+                            cells[cid].Expand(new Vector2Int(nx, ny));
                         }
                     }
                 }
@@ -340,8 +344,8 @@ public class CellSim : MonoBehaviour
         {
             for (int x = 0; x < w; x++)
             {
-                int cid = nextGrid[x, y];
-                if (cid <= 0) continue; // skip empty or invalid occupant
+                int cid = gridState[x, y];
+                if (cid == 0 || nextGrid[x,y] != cid) continue; // skip empty or invalid occupant
 
                 float pHere = GetPressure(x, y, nextGrid);
 
@@ -353,14 +357,13 @@ public class CellSim : MonoBehaviour
                     int ny = y + dys[i];
                     if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
 
-                    int neighborCID = nextGrid[nx, ny];
-                    if (neighborCID == 0)
+                    if (nextGrid[nx, ny] == 0)
                     {
                         if (pHere + transmissionCost < atmosphericPressure)
                         {
                             // occupant can't hold this square => revert to air
                             nextGrid[x, y] = 0;
-                            cells[cid].Area--;
+                            cells[cid].Contract(new Vector2Int(x, y));
                             break; // done with this occupant square
                         }
                     }
@@ -376,11 +379,13 @@ public class CellSim : MonoBehaviour
         {
             return center;
         }
-        if (Input.GetKey(KeyCode.UpArrow))    { center = new Vector2(center.x, center.y + 2); }
-        if (Input.GetKey(KeyCode.DownArrow))  { center = new Vector2(center.x, center.y - 2); }
-        if (Input.GetKey(KeyCode.LeftArrow))  { center = new Vector2(center.x - 2, center.y); }
-        if (Input.GetKey(KeyCode.RightArrow)) { center = new Vector2(center.x + 2, center.y); }
-        return center;
+
+        Vector2 direction = Vector2.zero;
+        if (Input.GetKey(KeyCode.UpArrow)) { direction = direction + new Vector2(0, 1); }
+        if (Input.GetKey(KeyCode.DownArrow)) { direction = direction + new Vector2(0, -1); }
+        if (Input.GetKey(KeyCode.LeftArrow)) { direction = direction + new Vector2(-1, 0); }
+        if (Input.GetKey(KeyCode.RightArrow)) { direction = direction + new Vector2(1, 0); }
+        return center + direction.normalized * 2;
     }
 
     /// <summary>
@@ -500,6 +505,8 @@ public class CellSim : MonoBehaviour
         int area = 0;
         Vector2 sumPos = Vector2.zero;
 
+        HashSet<Vector2Int> pixels = new HashSet<Vector2Int>();
+
         for (int i = Mathf.Max(0, x - r); i <= Mathf.Min(w - 1, x + r); i++)
         {
             for (int j = Mathf.Max(0, y - r); j <= Mathf.Min(h - 1, y + r); j++)
@@ -510,6 +517,7 @@ public class CellSim : MonoBehaviour
                     gridState[i, j] = cellID;
                     sumPos += new Vector2(i, j);
                     area++;
+                    pixels.Add(new Vector2Int(i,j));
                 }
             }
         }
@@ -517,7 +525,7 @@ public class CellSim : MonoBehaviour
         if (area > 0)
         {
             Vector2 com = sumPos / area;
-            cells[cellID] = new Cell(cellID, area, com, c);
+            cells[cellID] = new Cell(cellID, area, com, c, pixels);
         }
     }
 
@@ -569,12 +577,14 @@ public class Cell
     public float FluidContent { get; private set; }
     public Vector2 CenterOfMass { get; set; }
 
+    public HashSet<Vector2Int> Pixels {get; set;}
+
     public Color Color { get; set; }
 
     // We'll track sum of occupant pixel positions so we can quickly recompute center of mass
     public Vector2 SumPosition { get; set; }
 
-    public Cell(int id, int area, Vector2 centerOfMass, Color color)
+    public Cell(int id, int area, Vector2 centerOfMass, Color color, HashSet<Vector2Int> pixels)
     {
         ID = id;
         Area = area;
@@ -582,6 +592,17 @@ public class Cell
         CenterOfMass = centerOfMass;
         SumPosition = Vector2.zero;
         Color = color;
+        Pixels = pixels;
+    }
+
+    public void Expand(Vector2Int position){
+        Pixels.Add(position);
+        Area++;
+    }
+
+    public void Contract(Vector2Int position){
+        Pixels.Remove(position);
+        Area--;
     }
 
     public void AddFluid(float amount)
