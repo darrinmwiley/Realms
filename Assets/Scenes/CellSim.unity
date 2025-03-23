@@ -270,8 +270,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: acc7aa1d02af5df418e0e9505b22c53c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  width: 60
-  height: 60
+  width: 300
+  height: 300
   mainCamera: {fileID: 1142947990}
 --- !u!4 &928547148
 Transform:

@@ -85,6 +85,7 @@ public class CellSim : MonoBehaviour
 
     void Update()
     {
+        float startTime = DateTime.Now.Millisecond;
         if (Input.GetMouseButtonDown(0))
         {
             Vector2Int? mp = display.TranslateMouseToTextureCoordinates();
@@ -350,33 +351,29 @@ public class CellSim : MonoBehaviour
         int w = display.GetWidth();
         int h = display.GetHeight();
 
-        for (int y = 0; y < h; y++)
-        {
-            for (int x = 0; x < w; x++)
-            {
-                int cid = GetCellId(new Vector2Int(x, y), gridState, gridState);
+        display.Clear();
 
-                bool isGridEdge = (x == 0 || x == w - 1 || y == 0 || y == h - 1);
-                if (cid == 0)
-                {
-                    // empty squares
-                    display.SetPixel(x, y, isGridEdge ? Color.blue : Color.black);
-                }
+        foreach(var kvp in cells)
+        {
+            Cell c = kvp.Value;
+            foreach (var pixel in c.Pixels)
+            {
+                if(c.BoundaryPixels.Contains(pixel))
+                    display.SetPixel(pixel.x, pixel.y, Color.white);
                 else
-                {
-                    // occupant squares
-                    if (isGridEdge)
-                    {
-                        // occupant on outer boundary => color them blue
-                        display.SetPixel(x, y, Color.blue);
-                    }
-                    else
-                    {
-                        bool occupantBoundary = IsBoundaryPixel(x, y);
-                        display.SetPixel(x, y, occupantBoundary ? Color.white : cells[cid].Color);
-                    }
-                }
+                    display.SetPixel(pixel.x, pixel.y, c.Color);
             }
+        }
+
+        /*for(int i = 0;i<w;i++)
+        {
+            display.SetPixel(0,i,Color.blue);
+            display.SetPixel(h-1,i,Color.blue);
+        }
+        for(int i = 0;i<h;i++)
+        {
+            display.SetPixel(i,0,Color.blue);
+            display.SetPixel(i,w-1,Color.blue);
         }
 
         // Show each cell's center of mass in yellow
@@ -398,7 +395,7 @@ public class CellSim : MonoBehaviour
             int hx = hoveredPixel.Value.x;
             int hy = hoveredPixel.Value.y;
             display.SetPixel(hx, hy, Color.magenta);
-        }
+        }*/
     }
 
     bool IsBoundaryPixel(int x, int y)

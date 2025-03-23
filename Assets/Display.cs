@@ -5,8 +5,13 @@ public class Display : MonoBehaviour
     public int width = 16;
     public int height = 16;
     public Camera mainCamera;
+
     private Texture2D texture;
     private SpriteRenderer spriteRenderer;
+
+    // We'll create these in Awake so we can blit black:
+    private Texture2D blackTex;      // 1×1 black texture
+    private RenderTexture rt;        // same size as 'texture'
 
     void Awake()
     {
@@ -30,16 +35,51 @@ public class Display : MonoBehaviour
         spriteRenderer = displayObject.AddComponent<SpriteRenderer>();
 
         // Create a sprite and set it to the SpriteRenderer
-        spriteRenderer.sprite = Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 1);
+        spriteRenderer.sprite = Sprite.Create(texture,
+                                new Rect(0, 0, width, height),
+                                new Vector2(0.5f, 0.5f), 1);
         spriteRenderer.drawMode = SpriteDrawMode.Sliced;
         spriteRenderer.size = new Vector2(width, height);
 
         // Adjust camera to fit the texture exactly
         FitTextureToScreen();
+
+        // ----------------------------------------------------
+        // Create our 1×1 black texture
+        blackTex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+        blackTex.SetPixel(0, 0, Color.black);
+        blackTex.Apply();
+
+        // Create a RenderTexture of the same dimensions
+        rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
+        rt.filterMode = FilterMode.Point;
+        rt.wrapMode = TextureWrapMode.Clamp;
+        // ----------------------------------------------------
     }
 
     public int GetWidth() => width;
     public int GetHeight() => height;
+
+    /// <summary>
+    /// Blits the 1×1 black texture onto rt, then
+    /// copies rt back into our main texture, making it fully black.
+    /// </summary>
+    public void Clear()
+    {
+        // 1) Remember the old render target
+        RenderTexture oldRT = RenderTexture.active;
+
+        // 2) Set our rt as active, then Blit the blackTex onto it
+        RenderTexture.active = rt;
+        Graphics.Blit(blackTex, rt);
+
+        // 3) Now read back from rt into our Texture2D
+        texture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+        texture.Apply();
+
+        // 4) Restore the old render target
+        RenderTexture.active = oldRT;
+    }
 
     public void SetPixel(int x, int y, Color color)
     {
@@ -56,7 +96,9 @@ public class Display : MonoBehaviour
         Vector3 mouseScreenPos = Input.mousePosition;
 
         // Convert to world coordinates
-        Vector3 mouseWorldPos = mainCamera.ScreenToWorldPoint(new Vector3(mouseScreenPos.x, mouseScreenPos.y, -mainCamera.transform.position.z));
+        Vector3 mouseWorldPos = mainCamera.ScreenToWorldPoint(
+            new Vector3(mouseScreenPos.x, mouseScreenPos.y, -mainCamera.transform.position.z)
+        );
 
         // Get the bounds of the displayed texture
         Bounds spriteBounds = spriteRenderer.bounds;
@@ -67,9 +109,9 @@ public class Display : MonoBehaviour
             return null; // Mouse is outside the rendered texture
         }
 
-        // Convert world position to local position relative to the sprite center
+        // Convert world position to local position relative to the sprite's min
         Vector3 localPos = mouseWorldPos - spriteBounds.min;
-        
+
         // Normalize the local position to the texture size
         float normalizedX = localPos.x / spriteBounds.size.x;
         float normalizedY = localPos.y / spriteBounds.size.y;
@@ -85,7 +127,10 @@ public class Display : MonoBehaviour
         return new Vector2Int(texX, texY);
     }
 
-    public void Update(){
+    void Update()
+    {
+        // Example usage: just logging the mouse pixel coords
+        // Debug.Log(TranslateMouseToTextureCoordinates());
     }
 
     private void FitTextureToScreen()
