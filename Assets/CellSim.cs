@@ -143,19 +143,7 @@ public class CellSim : MonoBehaviour
         int h = display.GetHeight();
         int cid = cellsGrid[x, y];
         if (cid == 0) return false;
-        //return cells[cid].BoundaryPixels.Contains(new Vector2Int(x, y));
-
-        int[] dxs = { 0, 0, -1, 1 };
-        int[] dys = { -1, 1, 0, 0 };
-
-        for (int i = 0; i < 4; i++)
-        {
-            int nx = x + dxs[i];
-            int ny = y + dys[i];
-            if (nx < 0 || nx >= w || ny < 0 || ny >= h) return true;
-            if (cellsGrid[nx, ny] != cid) return true;
-        }
-        return false;
+        return cells[cid].BoundaryPixels.Contains(new Vector2Int(x, y));
     }
 
     /// <summary>
