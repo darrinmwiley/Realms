@@ -86,7 +86,6 @@ public class Display : MonoBehaviour
         if (x >= 0 && x < width && y >= 0 && y < height)
         {
             texture.SetPixel(x, y, color);
-            texture.Apply();
         }
     }
 
@@ -125,6 +124,11 @@ public class Display : MonoBehaviour
         texY = Mathf.Clamp(texY, 0, height - 1);
 
         return new Vector2Int(texX, texY);
+    }
+
+    public void Render()
+    {
+        texture.Apply();
     }
 
     void Update()

@@ -44,6 +44,8 @@ public class CellSim : MonoBehaviour
         int h = display.GetHeight();
         gridState = new Dictionary<Vector2Int, int>();
 
+        display.Clear();
+
         // Place one cell for demonstration
         PlaceCell(15, 15, Mathf.RoundToInt(initialRadius), Color.red);
 
@@ -85,6 +87,13 @@ public class CellSim : MonoBehaviour
 
     void Update()
     {
+        HandleInput();
+        PerformExpansionsAndContractions();
+        UpdateHoverInfo();
+        display.Render();
+    }
+
+    void HandleInput(){
         float startTime = DateTime.Now.Millisecond;
         if (Input.GetMouseButtonDown(0))
         {
@@ -101,19 +110,6 @@ public class CellSim : MonoBehaviour
                 }
             }
         }
-
-        //update center of masses once per tick for stability
-        foreach (var kvp in cells)
-        {
-            Cell c = kvp.Value;
-            if (c.Area > 0)
-            {
-                c.CenterOfMass = c.SumPosition / c.Area;
-            }
-        }
-        PerformExpansionsAndContractions();
-        UpdateHoverInfo();
-        Render();
     }
 
     public float GetPressure(int x, int y, Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates)
@@ -174,6 +170,15 @@ public class CellSim : MonoBehaviour
     /// </summary>
     void PerformExpansionsAndContractions()
     {
+        foreach (var kvp in cells)
+        {
+            Cell c = kvp.Value;
+            if (c.Area > 0)
+            {
+                c.CenterOfMass = c.SumPosition / c.Area;
+            }
+        }
+
         int w = display.GetWidth();
         int h = display.GetHeight();
 
@@ -187,15 +192,44 @@ public class CellSim : MonoBehaviour
         // commit updates
         foreach (var kvp in updates)
         {
-            if(kvp.Value == 0 && gridState.ContainsKey(kvp.Key))
+            CommitGridUpdate(kvp.Key, kvp.Value);
+        }
+    }
+
+    void CommitGridUpdate(Vector2Int location, int cellId)
+    {
+        if(cellId == 0 && gridState.ContainsKey(location))
+        {
+            gridState.Remove(location);
+        }
+        else
+        {
+            gridState[location] = cellId;
+        }
+        if(ShouldUpdateScreenForChange(location))
+        {
+            if(cellId == 0)
             {
-                gridState.Remove(kvp.Key);
+                display.SetPixel(location.x, location.y, Color.black);
             }
-            else
+            else if(cells.ContainsKey(cellId))
             {
-                gridState[kvp.Key] = kvp.Value;
+                Cell cell = cells[cellId];
+                if(cell.BoundaryPixels.Contains(location))
+                {
+                    display.SetPixel(location.x, location.y, Color.white);
+                }
+                else
+                {
+                    display.SetPixel(location.x, location.y, cell.Color);
+                }
             }
         }
+    }
+
+    public bool ShouldUpdateScreenForChange(Vector2Int location)
+    {
+        return true;
     }
 
     /// <summary>
@@ -341,63 +375,6 @@ public class CellSim : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Renders occupant squares (boundary vs. interior) and empty squares
-    /// with border squares in blue, occupant boundaries in white, occupant interior in grey, etc.
-    /// Also draws center of mass in yellow, hovered occupant pixel in magenta.
-    /// </summary>
-    void Render()
-    {
-        int w = display.GetWidth();
-        int h = display.GetHeight();
-
-        display.Clear();
-
-        foreach(var kvp in cells)
-        {
-            Cell c = kvp.Value;
-            foreach (var pixel in c.Pixels)
-            {
-                if(c.BoundaryPixels.Contains(pixel))
-                    display.SetPixel(pixel.x, pixel.y, Color.white);
-                else
-                    display.SetPixel(pixel.x, pixel.y, c.Color);
-            }
-        }
-
-        /*for(int i = 0;i<w;i++)
-        {
-            display.SetPixel(0,i,Color.blue);
-            display.SetPixel(h-1,i,Color.blue);
-        }
-        for(int i = 0;i<h;i++)
-        {
-            display.SetPixel(i,0,Color.blue);
-            display.SetPixel(i,w-1,Color.blue);
-        }
-
-        // Show each cell's center of mass in yellow
-        foreach (var pair in cells)
-        {
-            var c = pair.Value;
-            Vector2 cm = GetEffectiveCenterOfMass(c);
-            int cx = Mathf.RoundToInt(cm.x);
-            int cy = Mathf.RoundToInt(cm.y);
-            if (cx >= 0 && cx < w && cy >= 0 && cy < h)
-            {
-                display.SetPixel(cx, cy, Color.yellow);
-            }
-        }
-
-        // highlight hovered occupant pixel in magenta (if any)
-        if (hoveredPixel.HasValue)
-        {
-            int hx = hoveredPixel.Value.x;
-            int hy = hoveredPixel.Value.y;
-            display.SetPixel(hx, hy, Color.magenta);
-        }*/
-    }
-
     bool IsBoundaryPixel(int x, int y)
     {
         int w = display.GetWidth();
@@ -437,7 +414,7 @@ public class CellSim : MonoBehaviour
         if (area > 0)
         {
             Vector2 com = sumPos / area;
-            cells[cellID] = new Cell(cellID, area, com, c, pixels, gridState);
+            cells[cellID] = new Cell(cellID, area, com, c, pixels, gridState, display);
         }
     }
 
@@ -497,13 +474,16 @@ public class Cell
     // We'll track sum of occupant pixel positions so we can quickly recompute center of mass
     public Vector2 SumPosition { get; set; }
 
-    public Cell(int id, int area, Vector2 centerOfMass, Color color, HashSet<Vector2Int> pixels, Dictionary<Vector2Int, int> cellsGrid)
+    public Display display;
+
+    public Cell(int id, int area, Vector2 centerOfMass, Color color, HashSet<Vector2Int> pixels, Dictionary<Vector2Int, int> cellsGrid, Display display)
     {
         ID = id;
         Area = pixels.Count;
         SumPosition = Vector2.zero;
         Pixels = pixels;
         BoundaryPixels = new HashSet<Vector2Int>();
+        this.display = display;
         foreach(var pixel in pixels){
             SumPosition += pixel;
             BoundaryAddCheck(pixel, cellsGrid, cellsGrid);
@@ -511,7 +491,12 @@ public class Cell
         FluidContent = area;  // Start with fluid == area
         CenterOfMass = centerOfMass;
         Color = color;
-        
+        foreach(var pixel in pixels){
+            display.SetPixel(pixel.x, pixel.y, color);
+        }
+        foreach(var pixel in BoundaryPixels){
+            display.SetPixel(pixel.x, pixel.y, Color.white);
+        }
     }
 
     public void BoundaryRemoveCheck(Vector2Int position, Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates){
@@ -533,6 +518,7 @@ public class Cell
             }
         }
         BoundaryPixels.Remove(position);
+        display.SetPixel(position.x, position.y, Color);
     }
 
     public void BoundaryAddCheck(Vector2Int position, Dictionary<Vector2Int, int> original, Dictionary<Vector2Int, int> updates)
@@ -552,6 +538,7 @@ public class Cell
             if (CellSim.GetCellId(new Vector2Int(position.x + dxs[i], position.y + dys[i]), original, updates) != ID)
             {
                 BoundaryPixels.Add(position);
+                display.SetPixel(position.x, position.y, Color.white);
                 return;
             }
         }
