@@ -32,6 +32,8 @@ public class CellSim : MonoBehaviour
 
     private Cell selectedCell;
 
+    float speed = .03f;
+
     void Start()
     {
         if (display == null)
@@ -90,7 +92,25 @@ public class CellSim : MonoBehaviour
         HandleInput();
         PerformExpansionsAndContractions();
         UpdateHoverInfo();
+        //ManuallyDrawCells();
         display.Render();
+    }
+
+    void ManuallyDrawCells()
+    {
+        foreach(var kvp in cells)
+        {
+            Cell c = kvp.Value;
+            if (c.Area > 0)
+            {
+                foreach(var location in c.Pixels)
+                {
+                    display.SetPixel(location.x, location.y, c.Color);
+                }
+                display.SetPixel(Mathf.RoundToInt(c.DesiredCenterOfMass.x), Mathf.RoundToInt(c.DesiredCenterOfMass.y), Color.white);
+                display.SetPixel(Mathf.RoundToInt(c.CenterOfMass.x), Mathf.RoundToInt(c.CenterOfMass.y), Color.black);
+            }
+        }
     }
 
     void HandleInput(){
@@ -109,6 +129,13 @@ public class CellSim : MonoBehaviour
                     selectedCell = cells[cid];
                 }
             }
+        }
+        if(selectedCell != null)
+        {
+            if (Input.GetKey(KeyCode.UpArrow)) { selectedCell.DesiredCenterOfMass += new Vector2(0, speed); }
+            if (Input.GetKey(KeyCode.DownArrow)) { selectedCell.DesiredCenterOfMass += new Vector2(0, -speed); }
+            if (Input.GetKey(KeyCode.LeftArrow)) { selectedCell.DesiredCenterOfMass += new Vector2(-speed, 0); }
+            if (Input.GetKey(KeyCode.RightArrow)) { selectedCell.DesiredCenterOfMass += new Vector2(speed, 0); }
         }
     }
 
@@ -173,9 +200,20 @@ public class CellSim : MonoBehaviour
         foreach (var kvp in cells)
         {
             Cell c = kvp.Value;
+            float desiredRadius = Mathf.Sqrt(c.Area / 3.14f);
             if (c.Area > 0)
             {
                 c.CenterOfMass = c.SumPosition / c.Area;
+                Vector2 direction = c.DesiredCenterOfMass - c.CenterOfMass;
+                float distance = direction.magnitude;
+                float maxDist = desiredRadius / 2;
+
+                if (distance > maxDist)
+                {
+                    direction.Normalize();
+                    c.DesiredCenterOfMass = c.CenterOfMass + direction * maxDist;
+                }
+                c.DesiredCenterOfMass -= direction * speed / 8;
             }
         }
 
@@ -332,9 +370,13 @@ public class CellSim : MonoBehaviour
         }
     }
 
+
+    //idea: each cell should also track its ideal center of mass, and calculate effective COM by averaging
+    // actual and ideal.
     Vector2 GetEffectiveCenterOfMass(Cell c)
     {
-        Vector2 center = c.CenterOfMass;
+        return (c.CenterOfMass + c.DesiredCenterOfMass) / 2;
+        /*Vector2 center = c.CenterOfMass;
         if(c != selectedCell)
         {
             return center;
@@ -345,7 +387,7 @@ public class CellSim : MonoBehaviour
         if (Input.GetKey(KeyCode.DownArrow)) { direction = direction + new Vector2(0, -1); }
         if (Input.GetKey(KeyCode.LeftArrow)) { direction = direction + new Vector2(-1, 0); }
         if (Input.GetKey(KeyCode.RightArrow)) { direction = direction + new Vector2(1, 0); }
-        return center + direction.normalized * 2;
+        return center + direction.normalized * 2;*/
     }
 
     /// <summary>
@@ -466,6 +508,8 @@ public class Cell
     public float FluidContent { get; private set; }
     public Vector2 CenterOfMass { get; set; }
 
+    public Vector2 DesiredCenterOfMass{ get; set;}
+
     public HashSet<Vector2Int> Pixels {get; set;}
     public HashSet<Vector2Int> BoundaryPixels {get; set;}
 
@@ -490,6 +534,7 @@ public class Cell
         }
         FluidContent = area;  // Start with fluid == area
         CenterOfMass = centerOfMass;
+        DesiredCenterOfMass = centerOfMass;
         Color = color;
         foreach(var pixel in pixels){
             display.SetPixel(pixel.x, pixel.y, color);
