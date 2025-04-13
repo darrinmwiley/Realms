@@ -501,12 +501,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   display: {fileID: 928547147}
-  circleCount: 10
+  circleCount: 1
   spawnRange: {x: 10, y: 10}
   minCircleRadius: 0.5
   maxCircleRadius: 2
-  maxSpeed: 20
-  moveForce: 200
   circleDrag: 1
   cameraMoveSpeed: 10
   zoomSpeed: 5

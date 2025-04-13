@@ -6,13 +6,12 @@ using System.Collections.Generic;
 ///  - Per-cell inner & outer radius
 ///  - Collision damping
 ///  - Click-to-select (left-click)
-///  - Right-click to split
+///  - Right-click to split (just calls cell.Split())
 ///  - WASD/zoom to pan the Voronoi region
 ///  - Left-click drag to pan
 ///  - Per-pixel Voronoi coloring & border detection
 ///  - Overlap-based repulsive forces
-///  - Default maxSpeed/maxAcceleration assigned to each cell
-///  - Selection sets a cell to ControlledBehavior; others idle by default
+///  - Now has AddCell(...) and RemoveCell(...)
 /// </summary>
 public class Field : MonoBehaviour
 {
@@ -24,26 +23,13 @@ public class Field : MonoBehaviour
     public Vector2 spawnRange = new Vector2(10, 10);
 
     [Header("Per-Cell Radius Settings")]
-    [Tooltip("Each cell gets a random radius in this range, used for BOTH inner and outer radius (scaled in code).")]
     public float minCircleRadius = 0.5f;
     public float maxCircleRadius = 2f;
 
-    [Header("Default Movement Limits")]
-    [Tooltip("Default max speed for newly spawned cells.")]
-    public float defaultMaxSpeed = 5f;
-    [Tooltip("Default max acceleration for newly spawned cells.")]
-    public float defaultMaxAcceleration = 10f;
-
-    [Header("Drag / Physics")]
-    [Tooltip("Drag factor applied to each cell’s rigidbody.")]
-    public float circleDrag = 1f;
-
     [Header("Camera Settings (Now used for Voronoi offset)")]
-    [Tooltip("How quickly WASD modifies the Voronoi offset.")]
     public float cameraMoveSpeed = 10f;
 
     [Header("Zoom Settings")]
-    [Tooltip("How quickly the mouse wheel zoom occurs.")]
     public float zoomSpeed = 5f;
 
     [Header("Voronoi Area")]
@@ -51,15 +37,10 @@ public class Field : MonoBehaviour
     public float voronoiY = -10f;
     public float voronoiWidth = 20f;
     public float voronoiHeight = 20f;
-
-    [Tooltip("Background color if no cell covers that pixel.")]
     public Color backgroundColor = Color.black;
-
-    [Tooltip("Inner radius darkening factor. 0=black, 1=same color.")]
     public float innerDarkFactor = 0.5f;
 
     [Header("Pressure / Repulsion")]
-    [Tooltip("Strength of repulsive force when two cells overlap within outerRadius.")]
     public float repulsionStrength = 5f;
 
     private Color borderColor = Color.white;
@@ -69,13 +50,10 @@ public class Field : MonoBehaviour
     private Vector2Int dragStartPixel;
     private Vector2 startVoronoiPosAtDrag;
 
-    // We store all spawned Cell components here
+    // The global list of all spawned cells
     private List<Cell> cells = new List<Cell>();
 
-    // Keep track of whichever cell is currently user-controlled (if any)
-    private Cell currentlyControlledCell = null;
-
-    private int nextCellID = 100; // We'll assign new IDs to split-off cells
+    private Cell selectedCell = null;
 
     private void Start()
     {
@@ -85,29 +63,28 @@ public class Field : MonoBehaviour
             return;
         }
 
-        // Spawn the initial batch of cells
-        for (int i = 0; i < circleCount; i++)
-        {
-            SpawnCell(i);
-        }
+        AddNewCell(1, new IdleBehavior());
+        AddNewCell(2, new IdleBehavior());
+        //AddNewCell(2, new BoidsBehavior());
     }
 
     private void Update()
     {
         HandleVoronoiOffset();
-        HandleCellSelection(); // Left click
-        HandleCellSplit();     // Right click
+        HandleCellSelection(); // left-click
+        HandleCellSplit();     // right-click
 
-        // Draw Voronoi each frame
         DrawVoronoiToDisplay();
     }
 
     private void FixedUpdate()
     {
-        // Let each cell's behavior run
         float dt = Time.fixedDeltaTime;
-        foreach (Cell c in cells)
+        // Let each cell's behavior run
+        for (int i = cells.Count - 1;i>=0;i--)
         {
+            Cell c = cells[i];
+            c.HandleGrowth();
             c.behavior?.PerformBehavior(dt, c, this);
         }
 
@@ -116,11 +93,180 @@ public class Field : MonoBehaviour
     }
 
     /// <summary>
+    /// Creates a brand-new Cell at a random position, random radius,
+    /// sets up colliders, default behavior, etc.
+    /// </summary>
+    private Cell AddNewCell(int cellIndex, ICellBehavior behavior)
+    {
+        Vector2 position = new Vector2(
+            Random.Range(-spawnRange.x, spawnRange.x),
+            Random.Range(-spawnRange.y, spawnRange.y)
+        );
+
+        float randomRadius = Random.Range(minCircleRadius, maxCircleRadius);
+
+        return Cell.NewBuilder()
+            .SetField(this)
+            .SetGameObjectName("Cell_" + cellIndex)
+            .SetCellID(cellIndex)
+            .SetPosition(position)
+            .SetColor(Random.ColorHSV())
+            .SetInnerRadius(randomRadius)
+            .SetOuterRadius(randomRadius * 2f)
+            .SetBehavior(behavior)
+            .Build();
+    }
+
+    /// <summary>
+    /// Add the given cell to our global 'cells' list (and anything else needed).
+    /// </summary>
+    public void AddCell(Cell c)
+    {
+        // You can do checks or events here if needed
+        cells.Add(c);
+    }
+
+    /// <summary>
+    /// Remove the given cell from our global list. (Cell calls this from within Split()).
+    /// </summary>
+    public void RemoveCell(Cell c)
+    {
+        // You can do checks or events here if needed
+        cells.Remove(c);
+        if( c == selectedCell)
+        {
+            selectedCell = null; // Deselect if we were selected
+        }
+    }
+
+    /// <summary>
+    /// Left-click to select/focus a cell. (Optional old logic if you have a "ControlledBehavior".)
+    /// </summary>
+    private void HandleCellSelection()
+    {
+        if (Input.GetMouseButtonDown(0)) // left
+        {
+            Vector2Int? pixelCoords = display.TranslateMouseToTextureCoordinates();
+            if (!pixelCoords.HasValue) return;
+            Vector2 clickWorldPos = PixelToWorld(pixelCoords.Value.x, pixelCoords.Value.y);
+
+            // e.g. find which cell was clicked
+            float closestDistance = float.MaxValue;
+            Cell clickedCell = null;
+            foreach (Cell c in cells)
+            {
+                float dist = Vector2.Distance(clickWorldPos, c.transform.position);
+                if (dist < c.innerRadius && dist < closestDistance)
+                {
+                    closestDistance = dist;
+                    clickedCell = c;
+                }
+            }
+
+            // If you have logic to set behavior = new ControlledBehavior(), do it here
+            if (clickedCell != null && !(clickedCell.behavior is BoidsBehavior))
+            {
+                if(selectedCell != null && selectedCell != clickedCell)
+                {
+                    // Deselect previous cell
+                    selectedCell.behavior = new IdleBehavior();
+                }
+                clickedCell.behavior = new ControlledBehavior();
+                selectedCell = clickedCell;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Right-click to split a cell. We just find the clicked cell and call cell.Split().
+    /// </summary>
+    private void HandleCellSplit()
+    {
+        if (Input.GetMouseButtonDown(1))
+        {
+            Vector2Int? pixelCoords = display.TranslateMouseToTextureCoordinates();
+            if (!pixelCoords.HasValue) return;
+            Vector2 clickWorldPos = PixelToWorld(pixelCoords.Value.x, pixelCoords.Value.y);
+
+            float closestDistance = float.MaxValue;
+            Cell clickedCell = null;
+            foreach (Cell c in cells)
+            {
+                float dist = Vector2.Distance(clickWorldPos, c.transform.position);
+                if (dist < c.innerRadius && dist < closestDistance)
+                {
+                    closestDistance = dist;
+                    clickedCell = c;
+                }
+            }
+
+            if (clickedCell != null)
+            {
+                clickedCell.Split(); // The actual logic is in Cell.Split()
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies a gentle repulsive force between overlapping cells.
+    /// Called from FixedUpdate.
+    /// </summary>
+    private void ApplyRepulsionForces()
+    {
+        ContactFilter2D filter = new ContactFilter2D
+        {
+            useTriggers = true,
+            useLayerMask = false,
+            useDepth = false
+        };
+
+        var overlaps = new List<Collider2D>(16);
+
+        foreach (Cell cA in cells)
+        {
+            if (!cA.outerCollider) continue;
+
+            overlaps.Clear();
+            int count = cA.outerCollider.OverlapCollider(filter, overlaps);
+
+            for (int k = 0; k < count; k++)
+            {
+                Collider2D otherColl = overlaps[k];
+                if (!otherColl) continue;
+
+                Cell cB = otherColl.GetComponentInParent<Cell>();
+                if (cB == null || cB == cA) continue;
+
+                // Avoid doubling forces if we see the pair from both sides
+                if (cA.transform.GetInstanceID() >= cB.transform.GetInstanceID())
+                    continue;
+
+                Vector2 posA = cA.transform.position;
+                Vector2 posB = cB.transform.position;
+                Vector2 delta = posA - posB;
+                float dist = delta.magnitude;
+
+                float combinedOuter = cA.outerRadius + cB.outerRadius;
+                if (dist < combinedOuter && dist > 0.001f)
+                {
+                    Vector2 pushDir = delta.normalized;
+                    float overlapFactor = 1f - (dist / combinedOuter);
+                    float strength = overlapFactor * repulsionStrength;
+
+                    Vector2 force = pushDir * strength;
+                    cA.rb.AddForce(force);
+                    cB.rb.AddForce(-force);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Reads WASD + left mouse dragging + mouse wheel zoom for the Voronoi "camera."
     /// </summary>
     private void HandleVoronoiOffset()
     {
-        // 1) WASD Panning (only if not currently dragging)
+        // 1) WASD panning
         if (!isDragging)
         {
             if (Input.GetKey(KeyCode.W)) voronoiY += cameraMoveSpeed * Time.deltaTime;
@@ -129,7 +275,7 @@ public class Field : MonoBehaviour
             if (Input.GetKey(KeyCode.D)) voronoiX += cameraMoveSpeed * Time.deltaTime;
         }
 
-        // 2) Left Mouse Drag for "camera" movement
+        // 2) Left mouse drag
         if (Input.GetMouseButtonDown(0))
         {
             Vector2Int? pix = display.TranslateMouseToTextureCoordinates();
@@ -160,7 +306,7 @@ public class Field : MonoBehaviour
             }
         }
 
-        // 3) Mouse Wheel Zoom (only if not currently dragging)
+        // 3) Mouse Wheel Zoom
         if (!isDragging)
         {
             float scroll = Input.GetAxis("Mouse ScrollWheel");
@@ -184,325 +330,15 @@ public class Field : MonoBehaviour
     }
 
     /// <summary>
-    /// Left-click to select a cell (if within innerRadius).
-    /// If we successfully select a new cell, we set it to ControlledBehavior,
-    /// and revert the previously controlled cell to IdleBehavior.
-    /// </summary>
-    private void HandleCellSelection()
-    {
-        if (Input.GetMouseButtonDown(0)) // left mouse
-        {
-            Vector2Int? pixelCoords = display.TranslateMouseToTextureCoordinates();
-            if (!pixelCoords.HasValue) return;
-
-            Vector2 clickWorldPos = PixelToWorld(pixelCoords.Value.x, pixelCoords.Value.y);
-
-            float closestDistance = float.MaxValue;
-            Cell closestCell = null;
-
-            foreach (Cell c in cells)
-            {
-                float dist = Vector2.Distance(clickWorldPos, c.transform.position);
-                if (dist < c.innerRadius && dist < closestDistance)
-                {
-                    closestDistance = dist;
-                    closestCell = c;
-                }
-            }
-
-            if (closestCell != null)
-            {
-                // If there's a currently controlled cell that's different, revert it to Idle
-                if (currentlyControlledCell != null && currentlyControlledCell != closestCell)
-                {
-                    currentlyControlledCell.behavior = new IdleBehavior();
-                }
-                // Mark the new cell as controlled
-                currentlyControlledCell = closestCell;
-                currentlyControlledCell.behavior = new ControlledBehavior();
-            }
-            else
-            {
-                // If we clicked empty space, revert the currently controlled cell to Idle
-                if (currentlyControlledCell != null)
-                {
-                    currentlyControlledCell.behavior = new IdleBehavior();
-                    currentlyControlledCell = null;
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Right-click to split a cell into two smaller cells of half the area each.
-    /// </summary>
-    private void HandleCellSplit()
-    {
-        if (Input.GetMouseButtonDown(1)) // right mouse
-        {
-            Vector2Int? pixelCoords = display.TranslateMouseToTextureCoordinates();
-            if (!pixelCoords.HasValue) return;
-
-            Vector2 clickWorldPos = PixelToWorld(pixelCoords.Value.x, pixelCoords.Value.y);
-
-            // Find which cell was clicked (if any)
-            float closestDistance = float.MaxValue;
-            Cell clickedCell = null;
-
-            foreach (Cell c in cells)
-            {
-                float dist = Vector2.Distance(clickWorldPos, c.transform.position);
-                if (dist < c.innerRadius && dist < closestDistance)
-                {
-                    closestDistance = dist;
-                    clickedCell = c;
-                }
-            }
-
-            if (clickedCell != null)
-            {
-                SplitCell(clickedCell);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Splits the given cell into two new cells of half the area each (radius = oldRadius / sqrt(2)).
-    /// Places them near the old cell’s position, then destroys the old cell.
-    /// </summary>
-    private void SplitCell(Cell oldCell)
-    {
-        // If the old cell is currently controlled, we’ll un-control it
-        if (currentlyControlledCell == oldCell)
-        {
-            currentlyControlledCell = null;
-        }
-
-        float oldOuter = oldCell.outerRadius;
-        float oldInner = oldCell.innerRadius;
-
-        // The new radius to achieve half-area => oldRadius / sqrt(2).
-        float newOuter = oldOuter / Mathf.Sqrt(2f);
-        float newInner = newOuter * 0.5f; // same ratio as before
-
-        float mass = oldCell.rb.mass;
-
-        // We'll spawn them around the old position with a small random offset
-        Vector2 oldPos = oldCell.transform.position;
-        Vector2 offset = Random.insideUnitCircle.normalized * 0.25f;
-
-        // Create child A
-        SpawnChildCell(
-            oldPos + offset,
-            newOuter,
-            newInner,
-            mass,
-            oldCell.color,
-            oldCell.collisionDampFactor,
-            oldCell.growthRate,
-            oldCell.maximumSize
-        );
-
-        // Create child B
-        SpawnChildCell(
-            oldPos - offset,
-            newOuter,
-            newInner,
-            mass,
-            oldCell.color,
-            oldCell.collisionDampFactor,
-            oldCell.growthRate,
-            oldCell.maximumSize
-        );
-
-        // Remove the old cell from the list
-        cells.Remove(oldCell);
-        Destroy(oldCell.gameObject);
-    }
-
-    /// <summary>
-    /// Spawns a new cell GameObject with the Cell component, random position,
-    /// random radius, etc. Called initially at Start().
-    /// Each new cell defaults to IdleBehavior, but we can override later.
-    /// </summary>
-    private void SpawnCell(int cellIndex)
-    {
-        GameObject cellObj = new GameObject("Cell_" + cellIndex);
-        cellObj.transform.position = new Vector3(
-            Random.Range(-spawnRange.x, spawnRange.x),
-            Random.Range(-spawnRange.y, spawnRange.y),
-            0f
-        );
-
-        Cell cellComp = cellObj.AddComponent<Cell>();
-
-        // Assign IDs & references
-        cellComp.cellID = cellIndex;
-        cellComp.rb.gravityScale = 0f;
-        cellComp.rb.drag = circleDrag;
-        cellComp.rb.angularDrag = 0f;
-        cellComp.rb.mass = 10f;
-
-        // Assign default movement limits
-        cellComp.maxSpeed = defaultMaxSpeed;
-        cellComp.maxAcceleration = defaultMaxAcceleration;
-
-        // Pick random radius
-        float randomRadius = Random.Range(minCircleRadius, maxCircleRadius);
-        cellComp.innerRadius = randomRadius;
-        cellComp.outerRadius = randomRadius * 2f;
-
-        // Pick random color
-        cellComp.color = Random.ColorHSV();
-
-        // Add outer collider for Voronoi detection & store it
-        CircleCollider2D outerColl = cellObj.AddComponent<CircleCollider2D>();
-        outerColl.radius = cellComp.outerRadius;
-        outerColl.isTrigger = true;
-        cellComp.outerCollider = outerColl;
-
-        // The inner collider for collisions:
-        CircleCollider2D innerColl = cellObj.AddComponent<CircleCollider2D>();
-        innerColl.radius = cellComp.innerRadius;
-        cellComp.innerCollider = innerColl;
-
-        // Default to IdleBehavior
-        cellComp.behavior = new IdleBehavior();
-
-        // Keep track of this new cell
-        cells.Add(cellComp);
-    }
-
-    /// <summary>
-    /// Spawns a cell with specific parameters (used when splitting).
-    /// </summary>
-    private Cell SpawnChildCell(
-        Vector2 position,
-        float outerR,
-        float innerR,
-        float mass,
-        Color color,
-        float collisionDamp,
-        float growthRate,
-        float maxSize
-    )
-    {
-        GameObject cellObj = new GameObject("Cell_" + nextCellID);
-        nextCellID++;
-
-        cellObj.transform.position = position;
-
-        Cell cellComp = cellObj.AddComponent<Cell>();
-        cellComp.cellID = cellComp.GetInstanceID(); // or store (nextCellID - 1) if you want
-        cellComp.rb.gravityScale = 0f;
-        cellComp.rb.drag = circleDrag;
-        cellComp.rb.angularDrag = 0f;
-        cellComp.rb.mass = mass;
-
-        // Give child same default speed/accel (or vary if you like)
-        cellComp.maxSpeed = defaultMaxSpeed;
-        cellComp.maxAcceleration = defaultMaxAcceleration;
-
-        // Set radius
-        cellComp.innerRadius = innerR;
-        cellComp.outerRadius = outerR;
-
-        // Keep color
-        cellComp.color = color;
-
-        // Growth & collision damping
-        cellComp.collisionDampFactor = collisionDamp;
-        cellComp.growthRate = growthRate;
-        cellComp.maximumSize = maxSize;
-
-        // Outer collider
-        CircleCollider2D outerColl = cellObj.AddComponent<CircleCollider2D>();
-        outerColl.radius = cellComp.outerRadius;
-        outerColl.isTrigger = true;
-        cellComp.outerCollider = outerColl;
-
-        // Inner collider
-        CircleCollider2D innerColl = cellObj.AddComponent<CircleCollider2D>();
-        innerColl.radius = cellComp.innerRadius;
-        cellComp.innerCollider = innerColl;
-
-        // Child also defaults to IdleBehavior
-        cellComp.behavior = new IdleBehavior();
-
-        // Add to our cells list
-        cells.Add(cellComp);
-
-        return cellComp;
-    }
-
-    /// <summary>
-    /// Adds a gentle repulsive force between overlapping cells, using their outer colliders.
-    /// Called from FixedUpdate.
-    /// (Repulsion remains force-based, while AI/user movement uses velocity-based logic.)
-    /// </summary>
-    private void ApplyRepulsionForces()
-    {
-        ContactFilter2D filter = new ContactFilter2D
-        {
-            useTriggers = true,
-            useLayerMask = false,
-            useDepth = false
-        };
-
-        List<Collider2D> overlaps = new List<Collider2D>(16);
-
-        for (int i = 0; i < cells.Count; i++)
-        {
-            Cell cA = cells[i];
-            if (!cA.outerCollider) continue;
-
-            overlaps.Clear();
-            int count = cA.outerCollider.OverlapCollider(filter, overlaps);
-
-            for (int k = 0; k < count; k++)
-            {
-                Collider2D otherColl = overlaps[k];
-                if (!otherColl) continue;
-
-                Cell cB = otherColl.GetComponentInParent<Cell>();
-                if (cB == null || cB == cA) continue;
-
-                // Avoid doubling forces if we see the pair from both sides
-                if (cA.transform.GetInstanceID() >= cB.transform.GetInstanceID())
-                    continue;
-
-                Vector2 posA = cA.transform.position;
-                Vector2 posB = cB.transform.position;
-                Vector2 delta = posA - posB;
-                float dist = delta.magnitude;
-
-                float combinedOuter = cA.outerRadius + cB.outerRadius;
-                if (dist < combinedOuter && dist > 0.001f)
-                {
-                    Vector2 pushDir = delta.normalized;
-                    float overlapFactor = 1f - (dist / combinedOuter);
-                    float strength = overlapFactor * repulsionStrength;
-
-                    // Keep this as a force-based push
-                    Vector2 force = pushDir * strength;
-                    cA.rb.AddForce(force);
-                    cB.rb.AddForce(-force);
-                }
-            }
-        }
-    }
-
-    /// <summary>
     /// Runs the Voronoi pixel-by-pixel algorithm, storing the winner ID in an array,
     /// applying "inner radius" darkening, and marking 1-pixel borders in white.
     /// </summary>
     private void DrawVoronoiToDisplay()
     {
-        int texWidth = display.GetWidth();
+        int texWidth  = display.GetWidth();
         int texHeight = display.GetHeight();
 
-        // We'll store both the "winning ID" and the "pixel color" for each pixel
-        int[] winners = new int[texWidth * texHeight];
+        int[] winners  = new int[texWidth * texHeight];
         Color[] colors = new Color[texWidth * texHeight];
 
         float left = voronoiX;
@@ -512,7 +348,7 @@ public class Field : MonoBehaviour
 
         int layerMask = Physics2D.DefaultRaycastLayers;
 
-        // ---- First Pass ----
+        // First pass: figure out which cell "owns" each pixel
         for (int y = 0; y < texHeight; y++)
         {
             for (int x = 0; x < texWidth; x++)
@@ -526,77 +362,72 @@ public class Field : MonoBehaviour
                 float worldY = Mathf.Lerp(bottom, top, ny);
                 Vector2 pixelWorldPos = new Vector2(worldX, worldY);
 
-                // Very short vertical raycast from pixelWorldPos upward
                 Vector2 rayStart = pixelWorldPos + Vector2.up * 0.001f;
                 Vector2 rayDir = Vector2.down;
                 float rayDist = 0.002f;
 
                 RaycastHit2D[] hits = Physics2D.RaycastAll(rayStart, rayDir, rayDist, layerMask);
 
-                float minFractionDist = float.MaxValue;
+                float minFracDist = float.MaxValue;
                 float winningDist = float.MaxValue;
                 Cell winningCell = null;
 
                 for (int h = 0; h < hits.Length; h++)
                 {
                     Cell cData = hits[h].collider.GetComponentInParent<Cell>();
-                    if (cData == null) continue;
+                    if (!cData) continue;
 
                     float distToCenter = Vector2.Distance(pixelWorldPos, cData.transform.position);
                     if (distToCenter < cData.outerRadius)
                     {
-                        float fractionDist = distToCenter / cData.outerRadius;
-                        if (fractionDist < minFractionDist)
+                        float fracDist = distToCenter / cData.outerRadius;
+                        if (fracDist < minFracDist)
                         {
-                            minFractionDist = fractionDist;
+                            minFracDist = fracDist;
                             winningDist = distToCenter;
                             winningCell = cData;
                         }
                     }
                 }
 
-                // Decide color & record winner
                 if (winningCell == null)
                 {
-                    winners[index] = -1;  // no cell
+                    winners[index] = -1;
                     colors[index] = backgroundColor;
                 }
                 else
                 {
                     winners[index] = winningCell.cellID;
-
-                    // If within the cell's inner radius => darker color
                     if (winningDist < winningCell.innerRadius)
                     {
-                        Color origColor = winningCell.color;
+                        // Darker color
+                        Color orig = winningCell.color;
                         colors[index] = new Color(
-                            origColor.r * innerDarkFactor,
-                            origColor.g * innerDarkFactor,
-                            origColor.b * innerDarkFactor,
+                            orig.r * innerDarkFactor,
+                            orig.g * innerDarkFactor,
+                            orig.b * innerDarkFactor,
                             1f
                         );
                     }
                     else
                     {
-                        // Otherwise, normal cell color
                         colors[index] = winningCell.color;
                     }
                 }
             }
         }
 
-        // ---- Second Pass ----
-        // Mark any pixel whose winner differs from any neighbor as a border => white
+        // Second pass: mark borders
         int[] neighborOffsets =
         {
             -1,  0,  // up
              1,  0,  // down
              0, -1,  // left
              0,  1,  // right
-            -1, -1,  // up-left
-            -1,  1,  // up-right
-             1, -1,  // down-left
-             1,  1   // down-right
+            -1, -1,
+            -1,  1,
+             1, -1,
+             1,  1
         };
 
         for (int y = 0; y < texHeight; y++)
@@ -605,16 +436,13 @@ public class Field : MonoBehaviour
             {
                 int index = y * texWidth + x;
                 int myWinner = winners[index];
-
-                if (myWinner == -1)
-                    continue; // no cell => do not color border
+                if (myWinner == -1) continue; // no cell => ignore
 
                 bool isBorder = false;
                 for (int n = 0; n < neighborOffsets.Length; n += 2)
                 {
                     int dy = neighborOffsets[n];
                     int dx = neighborOffsets[n + 1];
-
                     int nx = x + dx;
                     int ny = y + dy;
                     if (nx < 0 || nx >= texWidth || ny < 0 || ny >= texHeight)
@@ -636,7 +464,7 @@ public class Field : MonoBehaviour
             }
         }
 
-        // ---- Render final colors ----
+        // Render final colors
         display.Clear();
         for (int y = 0; y < texHeight; y++)
         {
@@ -648,21 +476,14 @@ public class Field : MonoBehaviour
         display.Render();
     }
 
-    /// <summary>
-    /// Convert from a pixel coordinate [0..(texWidth - 1)] x [0..(texHeight - 1)]
-    /// to a world position in [voronoiX..(X+Width), voronoiY..(Y+Height)].
-    /// </summary>
-    private Vector2 PixelToWorld(int px, int py)
+    public Vector2 PixelToWorld(int px, int py)
     {
         float texW = display.GetWidth();
         float texH = display.GetHeight();
-
         float nx = px / (texW - 1f);
         float ny = py / (texH - 1f);
-
         float worldX = Mathf.Lerp(voronoiX, voronoiX + voronoiWidth, nx);
         float worldY = Mathf.Lerp(voronoiY, voronoiY + voronoiHeight, ny);
-
         return new Vector2(worldX, worldY);
     }
 }

@@ -30,7 +30,7 @@ public class IdleBehavior : ICellBehavior
     // The random spot we decided to move toward.
     private Vector2 targetPos;
 
-    public void PerformBehavior(float deltaTime, Cell cell, Field field)
+    public override void PerformBehavior(float deltaTime, Cell cell, Field field)
     {
         // If we are currently waiting, decrement the timer until we pick a new target
         if (!hasTarget)
@@ -65,6 +65,7 @@ public class IdleBehavior : ICellBehavior
             // Otherwise, compute an acceleration step:
             // 1) Desired velocity is maxSpeed in 'toTarget' direction
             Vector2 desiredVelocity = toTarget.normalized * cell.maxSpeed;
+
             Vector2 currentVelocity = cell.rb.velocity;
             // 2) The velocity difference
             Vector2 deltaV = desiredVelocity - currentVelocity;

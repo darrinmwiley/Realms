@@ -6,15 +6,15 @@ using UnityEngine;
 /// </summary>
 public class ControlledBehavior : ICellBehavior
 {
-    public void PerformBehavior(float deltaTime, Cell cell, Field field)
+    public override void PerformBehavior(float deltaTime, Cell cell, Field field)
     {
         // Gather user input
         Vector2 input = Vector2.zero;
         // Use arrow keys or WASD. Feel free to expand as needed:
-        if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))    input += Vector2.up;
-        if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))  input += Vector2.down;
-        if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))  input += Vector2.left;
-        if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) input += Vector2.right;
+        if (Input.GetKey(KeyCode.UpArrow))    input += Vector2.up;
+        if (Input.GetKey(KeyCode.DownArrow))  input += Vector2.down;
+        if (Input.GetKey(KeyCode.LeftArrow))  input += Vector2.left;
+        if (Input.GetKey(KeyCode.RightArrow)) input += Vector2.right;
 
         if (input.sqrMagnitude > 0.001f)
         {
