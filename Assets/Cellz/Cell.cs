@@ -6,7 +6,8 @@ using UnityEngine;
 ///  - Holds the rigidbody/collider references
 ///  - Handles collision damping in OnCollisionEnter2D
 ///  - Grows over time, capped at a maximumSize
-///  - Now also stores a reference to an ICellBehavior for AI/steering
+///  - Also stores a reference to an ICellBehavior for AI/steering
+///  - Adds maxSpeed and maxAcceleration for velocity-based steering
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 public class Cell : MonoBehaviour
@@ -35,6 +36,13 @@ public class Cell : MonoBehaviour
     [Tooltip("Maximum outer radius allowed.")]
     public float maximumSize = 4f;
 
+    [Header("Movement Limits (used by behaviors)")]
+    [Tooltip("Maximum speed (units/sec) this cell can move via AI or user input.")]
+    public float maxSpeed = 5f;
+
+    [Tooltip("Maximum acceleration (units/sec^2) for AI or user input.")]
+    public float maxAcceleration = 10f;
+
     /// <summary>
     /// The rigidbody of this cell for movement, forces, etc.
     /// </summary>
@@ -51,7 +59,7 @@ public class Cell : MonoBehaviour
     [HideInInspector] public CircleCollider2D innerCollider;
 
     /// <summary>
-    /// The assigned behavior that will steer this cell (Idle, Flee, etc.).
+    /// The assigned behavior that will steer this cell (Idle, Controlled, etc.).
     /// </summary>
     [HideInInspector] public ICellBehavior behavior;
 
@@ -63,20 +71,18 @@ public class Cell : MonoBehaviour
 
     private void Update()
     {
-        // GROWTH LOGIC (unchanged)
+        // GROWTH LOGIC
         if (outerRadius < maximumSize)
         {
             outerRadius += growthRate * Time.deltaTime;
             if (outerRadius > maximumSize)
                 outerRadius = maximumSize;
 
-            // Example: keep the inner radius half of outer
+            // Keep the inner radius half of outer, for example
             innerRadius = outerRadius * 0.5f;
             UpdateColliderSizes();
         }
-
-        // We do NOT call behavior here, because we plan to do it in Field.FixedUpdate()
-        // so that we can apply forces in sync with the physics engine.
+        // Behavior is not called here. We do it in Field.FixedUpdate() so physics is in sync.
     }
 
     /// <summary>

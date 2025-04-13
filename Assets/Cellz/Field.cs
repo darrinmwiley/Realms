@@ -11,7 +11,8 @@ using System.Collections.Generic;
 ///  - Left-click drag to pan
 ///  - Per-pixel Voronoi coloring & border detection
 ///  - Overlap-based repulsive forces
-///  - Now also assigns an IdleBehavior to each Cell
+///  - Default maxSpeed/maxAcceleration assigned to each cell
+///  - Selection sets a cell to ControlledBehavior; others idle by default
 /// </summary>
 public class Field : MonoBehaviour
 {
@@ -27,13 +28,13 @@ public class Field : MonoBehaviour
     public float minCircleRadius = 0.5f;
     public float maxCircleRadius = 2f;
 
-    [Header("Circle Movement")]
-    [Tooltip("Maximum speed each cell can have when moved via arrow keys.")]
-    public float maxSpeed = 5f;
+    [Header("Default Movement Limits")]
+    [Tooltip("Default max speed for newly spawned cells.")]
+    public float defaultMaxSpeed = 5f;
+    [Tooltip("Default max acceleration for newly spawned cells.")]
+    public float defaultMaxAcceleration = 10f;
 
-    [Tooltip("Force applied when pressing arrow keys to move the selected cell.")]
-    public float moveForce = 10f;
-
+    [Header("Drag / Physics")]
     [Tooltip("Drag factor applied to each cell’s rigidbody.")]
     public float circleDrag = 1f;
 
@@ -71,11 +72,8 @@ public class Field : MonoBehaviour
     // We store all spawned Cell components here
     private List<Cell> cells = new List<Cell>();
 
-    // The currently focused cell for arrow-key movement
-    private Rigidbody2D focusedCellRb = null;
-
-    // We'll store arrow-key movement input each frame & apply it in FixedUpdate
-    private Vector2 movementInput;
+    // Keep track of whichever cell is currently user-controlled (if any)
+    private Cell currentlyControlledCell = null;
 
     private int nextCellID = 100; // We'll assign new IDs to split-off cells
 
@@ -97,15 +95,27 @@ public class Field : MonoBehaviour
     private void Update()
     {
         HandleVoronoiOffset();
-        HandleCellSelection();  // Left click
-        HandleCellSplit();      // Right click
-        ReadMovementInput();    // for arrow keys
+        HandleCellSelection(); // Left click
+        HandleCellSplit();     // Right click
 
         // Draw Voronoi each frame
         DrawVoronoiToDisplay();
     }
 
-        /// <summary>
+    private void FixedUpdate()
+    {
+        // Let each cell's behavior run
+        float dt = Time.fixedDeltaTime;
+        foreach (Cell c in cells)
+        {
+            c.behavior?.PerformBehavior(dt, c, this);
+        }
+
+        // Then apply repulsive forces
+        ApplyRepulsionForces();
+    }
+
+    /// <summary>
     /// Reads WASD + left mouse dragging + mouse wheel zoom for the Voronoi "camera."
     /// </summary>
     private void HandleVoronoiOffset()
@@ -125,10 +135,6 @@ public class Field : MonoBehaviour
             Vector2Int? pix = display.TranslateMouseToTextureCoordinates();
             if (pix.HasValue)
             {
-                // If we didn't click inside a cell or we want to handle drag anyway,
-                // we set up dragging
-                // But be careful: left click also does selection, which can conflict.
-                // We'll assume user wants both behaviors possible.
                 isDragging = true;
                 dragStartPixel = pix.Value;
                 startVoronoiPosAtDrag = new Vector2(voronoiX, voronoiY);
@@ -177,146 +183,10 @@ public class Field : MonoBehaviour
         }
     }
 
-
-    private void FixedUpdate()
-    {
-        // 1) Apply user arrow-key movement to the currently focused cell
-        HandleCellMovement();
-
-        // 2) Let each cell's behavior run
-        float dt = Time.fixedDeltaTime;
-        foreach (Cell c in cells)
-        {
-            c.behavior?.PerformBehavior(dt, c, this);
-        }
-
-        // 3) Apply repulsive forces for overlapping cells
-        ApplyRepulsionForces();
-    }
-
     /// <summary>
-    /// Spawns a new cell GameObject with the Cell component, random position,
-    /// random radius, etc. Called initially at Start().
-    /// </summary>
-    private void SpawnCell(int cellIndex)
-    {
-        GameObject cellObj = new GameObject("Cell_" + cellIndex);
-        cellObj.transform.position = new Vector3(
-            Random.Range(-spawnRange.x, spawnRange.x),
-            Random.Range(-spawnRange.y, spawnRange.y),
-            0f
-        );
-
-        Cell cellComp = cellObj.AddComponent<Cell>();
-
-        // Assign IDs & references
-        cellComp.cellID = cellIndex;
-        cellComp.rb.gravityScale = 0f;
-        cellComp.rb.drag = circleDrag;
-        cellComp.rb.angularDrag = 0f;
-        cellComp.rb.mass = 10f;
-
-        // Pick random radius
-        float randomRadius = Random.Range(minCircleRadius, maxCircleRadius);
-        cellComp.innerRadius = randomRadius;
-        cellComp.outerRadius = randomRadius * 2f;
-
-        // Pick random color
-        cellComp.color = Random.ColorHSV();
-
-        // Add outer collider for Voronoi detection & store it
-        CircleCollider2D outerColl = cellObj.AddComponent<CircleCollider2D>();
-        outerColl.radius = cellComp.outerRadius;
-        outerColl.isTrigger = true;
-        cellComp.outerCollider = outerColl;
-
-        // The inner collider for collisions:
-        CircleCollider2D innerColl = cellObj.AddComponent<CircleCollider2D>();
-        innerColl.radius = cellComp.innerRadius;
-        cellComp.innerCollider = innerColl;
-
-        // NEW: Assign an IdleBehavior to this cell
-        cellComp.behavior = new IdleBehavior();
-
-        // Keep track of this new cell
-        cells.Add(cellComp);
-    }
-
-    /// <summary>
-    /// Spawns a cell with specific parameters (used when splitting).
-    /// </summary>
-    private Cell SpawnChildCell(
-        Vector2 position,
-        float outerR,
-        float innerR,
-        float mass,
-        Color color,
-        float collisionDamp,
-        float growthRate,
-        float maxSize
-    )
-    {
-        GameObject cellObj = new GameObject("Cell_" + nextCellID);
-        nextCellID++;
-
-        cellObj.transform.position = position;
-
-        Cell cellComp = cellObj.AddComponent<Cell>();
-        cellComp.cellID = cellComp.GetInstanceID(); // or store (nextCellID - 1) if you want
-        cellComp.rb.gravityScale = 0f;
-        cellComp.rb.drag = circleDrag;
-        cellComp.rb.angularDrag = 0f;
-        cellComp.rb.mass = mass;
-
-        // Set radius
-        cellComp.innerRadius = innerR;
-        cellComp.outerRadius = outerR;
-
-        // Keep color
-        cellComp.color = color;
-
-        // Growth & collision damping
-        cellComp.collisionDampFactor = collisionDamp;
-        cellComp.growthRate = growthRate;
-        cellComp.maximumSize = maxSize;
-
-        // Outer collider
-        CircleCollider2D outerColl = cellObj.AddComponent<CircleCollider2D>();
-        outerColl.radius = cellComp.outerRadius;
-        outerColl.isTrigger = true;
-        cellComp.outerCollider = outerColl;
-
-        // Inner collider
-        CircleCollider2D innerColl = cellObj.AddComponent<CircleCollider2D>();
-        innerColl.radius = cellComp.innerRadius;
-        cellComp.innerCollider = innerColl;
-
-        // When splitting, also default to IdleBehavior (or some other if desired)
-        cellComp.behavior = new IdleBehavior();
-
-        // Add to our cells list
-        cells.Add(cellComp);
-
-        return cellComp;
-    }
-
-    /// <summary>
-    /// Reads WASD arrow-key input for the selected cell (focusedCellRb).
-    /// </summary>
-    private void ReadMovementInput()
-    {
-        movementInput = Vector2.zero;
-        if (focusedCellRb != null)
-        {
-            if (Input.GetKey(KeyCode.UpArrow))    movementInput += Vector2.up;
-            if (Input.GetKey(KeyCode.DownArrow))  movementInput += Vector2.down;
-            if (Input.GetKey(KeyCode.LeftArrow))  movementInput += Vector2.left;
-            if (Input.GetKey(KeyCode.RightArrow)) movementInput += Vector2.right;
-        }
-    }
-
-    /// <summary>
-    /// Left-click to select/focus a cell (if within its innerRadius).
+    /// Left-click to select a cell (if within innerRadius).
+    /// If we successfully select a new cell, we set it to ControlledBehavior,
+    /// and revert the previously controlled cell to IdleBehavior.
     /// </summary>
     private void HandleCellSelection()
     {
@@ -342,11 +212,23 @@ public class Field : MonoBehaviour
 
             if (closestCell != null)
             {
-                focusedCellRb = closestCell.rb;
+                // If there's a currently controlled cell that's different, revert it to Idle
+                if (currentlyControlledCell != null && currentlyControlledCell != closestCell)
+                {
+                    currentlyControlledCell.behavior = new IdleBehavior();
+                }
+                // Mark the new cell as controlled
+                currentlyControlledCell = closestCell;
+                currentlyControlledCell.behavior = new ControlledBehavior();
             }
             else
             {
-                focusedCellRb = null;
+                // If we clicked empty space, revert the currently controlled cell to Idle
+                if (currentlyControlledCell != null)
+                {
+                    currentlyControlledCell.behavior = new IdleBehavior();
+                    currentlyControlledCell = null;
+                }
             }
         }
     }
@@ -390,17 +272,16 @@ public class Field : MonoBehaviour
     /// </summary>
     private void SplitCell(Cell oldCell)
     {
-        // If the old cell is currently focused, un-focus it
-        if (focusedCellRb == oldCell.rb)
+        // If the old cell is currently controlled, we’ll un-control it
+        if (currentlyControlledCell == oldCell)
         {
-            focusedCellRb = null;
+            currentlyControlledCell = null;
         }
 
-        // Original outer radius
         float oldOuter = oldCell.outerRadius;
         float oldInner = oldCell.innerRadius;
 
-        // The new radius to achieve half-area is oldRadius / sqrt(2).
+        // The new radius to achieve half-area => oldRadius / sqrt(2).
         float newOuter = oldOuter / Mathf.Sqrt(2f);
         float newInner = newOuter * 0.5f; // same ratio as before
 
@@ -440,29 +321,124 @@ public class Field : MonoBehaviour
     }
 
     /// <summary>
-    /// Applies arrow-key movement to the focused cell and clamps velocity.
-    /// Called from FixedUpdate.
+    /// Spawns a new cell GameObject with the Cell component, random position,
+    /// random radius, etc. Called initially at Start().
+    /// Each new cell defaults to IdleBehavior, but we can override later.
     /// </summary>
-    private void HandleCellMovement()
+    private void SpawnCell(int cellIndex)
     {
-        if (focusedCellRb == null) return;
+        GameObject cellObj = new GameObject("Cell_" + cellIndex);
+        cellObj.transform.position = new Vector3(
+            Random.Range(-spawnRange.x, spawnRange.x),
+            Random.Range(-spawnRange.y, spawnRange.y),
+            0f
+        );
 
-        // Apply user movement force
-        if (movementInput != Vector2.zero)
-        {
-            focusedCellRb.AddForce(movementInput * moveForce);
-        }
+        Cell cellComp = cellObj.AddComponent<Cell>();
 
-        // Clamp velocity
-        if (focusedCellRb.velocity.magnitude > maxSpeed)
-        {
-            focusedCellRb.velocity = focusedCellRb.velocity.normalized * maxSpeed;
-        }
+        // Assign IDs & references
+        cellComp.cellID = cellIndex;
+        cellComp.rb.gravityScale = 0f;
+        cellComp.rb.drag = circleDrag;
+        cellComp.rb.angularDrag = 0f;
+        cellComp.rb.mass = 10f;
+
+        // Assign default movement limits
+        cellComp.maxSpeed = defaultMaxSpeed;
+        cellComp.maxAcceleration = defaultMaxAcceleration;
+
+        // Pick random radius
+        float randomRadius = Random.Range(minCircleRadius, maxCircleRadius);
+        cellComp.innerRadius = randomRadius;
+        cellComp.outerRadius = randomRadius * 2f;
+
+        // Pick random color
+        cellComp.color = Random.ColorHSV();
+
+        // Add outer collider for Voronoi detection & store it
+        CircleCollider2D outerColl = cellObj.AddComponent<CircleCollider2D>();
+        outerColl.radius = cellComp.outerRadius;
+        outerColl.isTrigger = true;
+        cellComp.outerCollider = outerColl;
+
+        // The inner collider for collisions:
+        CircleCollider2D innerColl = cellObj.AddComponent<CircleCollider2D>();
+        innerColl.radius = cellComp.innerRadius;
+        cellComp.innerCollider = innerColl;
+
+        // Default to IdleBehavior
+        cellComp.behavior = new IdleBehavior();
+
+        // Keep track of this new cell
+        cells.Add(cellComp);
+    }
+
+    /// <summary>
+    /// Spawns a cell with specific parameters (used when splitting).
+    /// </summary>
+    private Cell SpawnChildCell(
+        Vector2 position,
+        float outerR,
+        float innerR,
+        float mass,
+        Color color,
+        float collisionDamp,
+        float growthRate,
+        float maxSize
+    )
+    {
+        GameObject cellObj = new GameObject("Cell_" + nextCellID);
+        nextCellID++;
+
+        cellObj.transform.position = position;
+
+        Cell cellComp = cellObj.AddComponent<Cell>();
+        cellComp.cellID = cellComp.GetInstanceID(); // or store (nextCellID - 1) if you want
+        cellComp.rb.gravityScale = 0f;
+        cellComp.rb.drag = circleDrag;
+        cellComp.rb.angularDrag = 0f;
+        cellComp.rb.mass = mass;
+
+        // Give child same default speed/accel (or vary if you like)
+        cellComp.maxSpeed = defaultMaxSpeed;
+        cellComp.maxAcceleration = defaultMaxAcceleration;
+
+        // Set radius
+        cellComp.innerRadius = innerR;
+        cellComp.outerRadius = outerR;
+
+        // Keep color
+        cellComp.color = color;
+
+        // Growth & collision damping
+        cellComp.collisionDampFactor = collisionDamp;
+        cellComp.growthRate = growthRate;
+        cellComp.maximumSize = maxSize;
+
+        // Outer collider
+        CircleCollider2D outerColl = cellObj.AddComponent<CircleCollider2D>();
+        outerColl.radius = cellComp.outerRadius;
+        outerColl.isTrigger = true;
+        cellComp.outerCollider = outerColl;
+
+        // Inner collider
+        CircleCollider2D innerColl = cellObj.AddComponent<CircleCollider2D>();
+        innerColl.radius = cellComp.innerRadius;
+        cellComp.innerCollider = innerColl;
+
+        // Child also defaults to IdleBehavior
+        cellComp.behavior = new IdleBehavior();
+
+        // Add to our cells list
+        cells.Add(cellComp);
+
+        return cellComp;
     }
 
     /// <summary>
     /// Adds a gentle repulsive force between overlapping cells, using their outer colliders.
     /// Called from FixedUpdate.
+    /// (Repulsion remains force-based, while AI/user movement uses velocity-based logic.)
     /// </summary>
     private void ApplyRepulsionForces()
     {
@@ -507,6 +483,7 @@ public class Field : MonoBehaviour
                     float overlapFactor = 1f - (dist / combinedOuter);
                     float strength = overlapFactor * repulsionStrength;
 
+                    // Keep this as a force-based push
                     Vector2 force = pushDir * strength;
                     cA.rb.AddForce(force);
                     cB.rb.AddForce(-force);

@@ -7,7 +7,7 @@ using UnityEngine;
 public interface ICellBehavior
 {
     /// <param name="deltaTime">Time step (usually Time.fixedDeltaTime).</param>
-    /// <param name="cell">Which cell we are controlling.</param>
+    /// <param name="cell">The Cell we are controlling.</param>
     /// <param name="field">Reference to the overall Field for context if needed.</param>
     void PerformBehavior(float deltaTime, Cell cell, Field field);
 }
