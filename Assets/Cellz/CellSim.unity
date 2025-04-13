@@ -270,8 +270,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: acc7aa1d02af5df418e0e9505b22c53c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  width: 600
-  height: 600
+  width: 300
+  height: 225
   mainCamera: {fileID: 1142947990}
 --- !u!4 &928547148
 Transform:
@@ -465,33 +465,14 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1486319905}
-  - component: {fileID: 1486319904}
+  - component: {fileID: 1486319906}
   m_Layer: 0
-  m_Name: CellSim
+  m_Name: Field
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1486319904
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1486319903}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 970d9f272a8360e4082d994f1af1af29, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  display: {fileID: 928547147}
-  initialRadius: 8
-  fluidIncreaseAmount: 5
-  atmosphericPressure: 1
-  borderPressure: 100
-  transmissionCost: 0.05
-  roundnessBonus: 0.5
 --- !u!4 &1486319905
 Transform:
   m_ObjectHideFlags: 0
@@ -507,3 +488,32 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1486319906
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1486319903}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35c2c4f2f681c29438cd9cb349bdb723, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  display: {fileID: 928547147}
+  circleCount: 10
+  spawnRange: {x: 10, y: 10}
+  minCircleRadius: 0.5
+  maxCircleRadius: 2
+  maxSpeed: 20
+  moveForce: 200
+  circleDrag: 1
+  cameraMoveSpeed: 10
+  zoomSpeed: 5
+  voronoiX: -10
+  voronoiY: -10
+  voronoiWidth: 20
+  voronoiHeight: 20
+  backgroundColor: {r: 0, g: 0, b: 0, a: 1}
+  innerDarkFactor: 1
+  repulsionStrength: 300
