@@ -55,26 +55,48 @@ public class Field : MonoBehaviour
 
     private Cell selectedCell = null;
 
+    QuadTreeNode rootNode;
+    QuadTreeValue value;
+
     private void Start()
     {
+        rootNode = new QuadTreeNode(new Vector2(-100, 100), new Vector2(200 , 200));
+        value = new QuadTreeValue(new Vector2(-99, 99), new Vector2(1 , 1));
+        rootNode.Add(value);
+
         if (display == null)
         {
             Debug.LogError("No Display assigned to Field. Please link one in the Inspector.");
             return;
         }
 
-        AddNewCell(1, new IdleBehavior());
-        AddNewCell(2, new IdleBehavior());
-        //AddNewCell(2, new BoidsBehavior());
+        AddIdleCell(1);
+        AddBoidsCell(2);
     }
 
     private void Update()
     {
+        if(selectedCell != null)
+        {
+            value.bbox = new BBox { tl = new Vector2(selectedCell.transform.position.x - selectedCell.outerRadius, selectedCell.transform.position.y + selectedCell.outerRadius), size = new Vector2(selectedCell.outerRadius * 2, selectedCell.outerRadius * 2) };
+            value.UpdateTree();
+        }
         HandleVoronoiOffset();
         HandleCellSelection(); // left-click
         HandleCellSplit();     // right-click
 
         DrawVoronoiToDisplay();
+        rootNode.Draw(display, new Vector2(voronoiX, voronoiY + voronoiHeight), new Vector2(voronoiWidth, voronoiHeight));
+        display.Render();
+        // Left-mouse button clicked during this frame?
+        if (Input.GetMouseButtonDown(0))
+        {
+            Vector2Int? pixelCoords = display.TranslateMouseToTextureCoordinates();
+            if (!pixelCoords.HasValue) return;                 // click was outside the display
+
+            Vector2 clickWorldPos = PixelToWorld(pixelCoords.Value.x,
+                                                pixelCoords.Value.y);
+        }
     }
 
     private void FixedUpdate()
@@ -96,7 +118,40 @@ public class Field : MonoBehaviour
     /// Creates a brand-new Cell at a random position, random radius,
     /// sets up colliders, default behavior, etc.
     /// </summary>
-    private Cell AddNewCell(int cellIndex, ICellBehavior behavior)
+    private Cell AddBoidsCell(int cellIndex)
+    {
+        Vector2 position = new Vector2(
+            Random.Range(-spawnRange.x, spawnRange.x),
+            Random.Range(-spawnRange.y, spawnRange.y)
+        );
+
+        float randomRadius = Random.Range(minCircleRadius / 6, maxCircleRadius / 6);
+
+        BoidsBehavior behavior = new BoidsBehavior();
+
+        Cell cell = Cell.NewBuilder()
+            .SetField(this)
+            .SetGameObjectName("Cell_" + cellIndex)
+            .SetCellID(cellIndex)
+            .SetPosition(position)
+            .SetColor(Random.ColorHSV())
+            .SetInnerRadius(randomRadius)
+            .SetOuterRadius(randomRadius * 2f)
+            .SetMaximumSize(1f)
+            .SetGrowthRate(.1f)
+            .SetBehavior(behavior)
+            .Build();
+
+        behavior.RegisterCell(cell);
+        return cell;
+    }
+
+
+    /// <summary>
+    /// Creates a brand-new Cell at a random position, random radius,
+    /// sets up colliders, default behavior, etc.
+    /// </summary>
+    private Cell AddIdleCell(int cellIndex)
     {
         Vector2 position = new Vector2(
             Random.Range(-spawnRange.x, spawnRange.x),
@@ -113,7 +168,7 @@ public class Field : MonoBehaviour
             .SetColor(Random.ColorHSV())
             .SetInnerRadius(randomRadius)
             .SetOuterRadius(randomRadius * 2f)
-            .SetBehavior(behavior)
+            .SetBehavior(new IdleBehavior())
             .Build();
     }
 
@@ -474,6 +529,10 @@ public class Field : MonoBehaviour
             }
         }
         display.Render();
+    }
+
+    public List<Cell> GetAllCells(){
+        return cells;
     }
 
     public Vector2 PixelToWorld(int px, int py)
