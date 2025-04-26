@@ -505,13 +505,12 @@ MonoBehaviour:
   spawnRange: {x: 10, y: 10}
   minCircleRadius: 0.5
   maxCircleRadius: 2
-  circleDrag: 1
   cameraMoveSpeed: 10
   zoomSpeed: 5
-  voronoiX: -10
-  voronoiY: -10
-  voronoiWidth: 20
-  voronoiHeight: 20
+  voronoiX: -20
+  voronoiY: -20
+  voronoiWidth: 40
+  voronoiHeight: 40
   backgroundColor: {r: 0, g: 0, b: 0, a: 1}
   innerDarkFactor: 1
   repulsionStrength: 300

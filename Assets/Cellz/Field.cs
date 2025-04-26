@@ -51,18 +51,18 @@ public class Field : MonoBehaviour
     private Vector2 startVoronoiPosAtDrag;
 
     // The global list of all spawned cells
-    private List<Cell> cells = new List<Cell>();
+    private Dictionary<int, Cell> cells = new Dictionary<int, Cell>();
+    private HashSet<int> toBeRemoved = new HashSet<int>();
+    private List<Cell> toBeAdded = new List<Cell>();
+    private Dictionary<int, QuadTreeValue> values = new Dictionary<int, QuadTreeValue>();
 
     private Cell selectedCell = null;
 
-    QuadTreeNode rootNode;
-    QuadTreeValue value;
+    QuadTreeNode quadtree;
 
     private void Start()
     {
-        rootNode = new QuadTreeNode(new Vector2(-100, 100), new Vector2(200 , 200));
-        value = new QuadTreeValue(new Vector2(-99, 99), new Vector2(1 , 1));
-        rootNode.Add(value);
+        quadtree = new QuadTreeNode(new Vector2(-300, 300), new Vector2(600 , 600));
 
         if (display == null)
         {
@@ -70,23 +70,19 @@ public class Field : MonoBehaviour
             return;
         }
 
-        AddIdleCell(1);
-        AddBoidsCell(2);
+        AddIdleCell();
+        //AddIdleCell();
+        AddBoidsCell();
     }
 
     private void Update()
     {
-        if(selectedCell != null)
-        {
-            value.bbox = new BBox { tl = new Vector2(selectedCell.transform.position.x - selectedCell.outerRadius, selectedCell.transform.position.y + selectedCell.outerRadius), size = new Vector2(selectedCell.outerRadius * 2, selectedCell.outerRadius * 2) };
-            value.UpdateTree();
-        }
         HandleVoronoiOffset();
         HandleCellSelection(); // left-click
         HandleCellSplit();     // right-click
 
         DrawVoronoiToDisplay();
-        rootNode.Draw(display, new Vector2(voronoiX, voronoiY + voronoiHeight), new Vector2(voronoiWidth, voronoiHeight));
+        quadtree.Draw(display, new Vector2(voronoiX, voronoiY + voronoiHeight), new Vector2(voronoiWidth, voronoiHeight));
         display.Render();
         // Left-mouse button clicked during this frame?
         if (Input.GetMouseButtonDown(0))
@@ -103,12 +99,19 @@ public class Field : MonoBehaviour
     {
         float dt = Time.fixedDeltaTime;
         // Let each cell's behavior run
-        for (int i = cells.Count - 1;i>=0;i--)
+        foreach (var kvp in cells)
         {
-            Cell c = cells[i];
+            Cell c = kvp.Value;
+            QuadTreeValue value = values[c.cellID];
+            value.bbox.tl = new Vector2(c.transform.position.x - c.outerRadius, c.transform.position.y + c.outerRadius);
+            value.bbox.size = new Vector2(c.outerRadius * 2, c.outerRadius * 2);
+            value.UpdateTree();
             c.HandleGrowth();
             c.behavior?.PerformBehavior(dt, c, this);
         }
+
+        ActuallyRemoveCells(); // Remove cells that have been marked for deletion
+        ActuallyAddCells();    // Add cells that have been marked for addition
 
         // Then apply repulsive forces
         ApplyRepulsionForces();
@@ -118,7 +121,7 @@ public class Field : MonoBehaviour
     /// Creates a brand-new Cell at a random position, random radius,
     /// sets up colliders, default behavior, etc.
     /// </summary>
-    private Cell AddBoidsCell(int cellIndex)
+    private Cell AddBoidsCell()
     {
         Vector2 position = new Vector2(
             Random.Range(-spawnRange.x, spawnRange.x),
@@ -131,8 +134,6 @@ public class Field : MonoBehaviour
 
         Cell cell = Cell.NewBuilder()
             .SetField(this)
-            .SetGameObjectName("Cell_" + cellIndex)
-            .SetCellID(cellIndex)
             .SetPosition(position)
             .SetColor(Random.ColorHSV())
             .SetInnerRadius(randomRadius)
@@ -151,7 +152,7 @@ public class Field : MonoBehaviour
     /// Creates a brand-new Cell at a random position, random radius,
     /// sets up colliders, default behavior, etc.
     /// </summary>
-    private Cell AddIdleCell(int cellIndex)
+    private Cell AddIdleCell()
     {
         Vector2 position = new Vector2(
             Random.Range(-spawnRange.x, spawnRange.x),
@@ -160,16 +161,16 @@ public class Field : MonoBehaviour
 
         float randomRadius = Random.Range(minCircleRadius, maxCircleRadius);
 
-        return Cell.NewBuilder()
+        Cell cell = Cell.NewBuilder()
             .SetField(this)
-            .SetGameObjectName("Cell_" + cellIndex)
-            .SetCellID(cellIndex)
             .SetPosition(position)
             .SetColor(Random.ColorHSV())
             .SetInnerRadius(randomRadius)
             .SetOuterRadius(randomRadius * 2f)
             .SetBehavior(new IdleBehavior())
             .Build();
+
+        return cell;
     }
 
     /// <summary>
@@ -177,8 +178,19 @@ public class Field : MonoBehaviour
     /// </summary>
     public void AddCell(Cell c)
     {
-        // You can do checks or events here if needed
-        cells.Add(c);
+        toBeAdded.Add(c);
+    }
+
+    public void ActuallyAddCells()
+    {
+        foreach (Cell c in toBeAdded)
+        {
+            // You can do checks or events here if needed
+            cells[c.cellID] = c;
+            values[c.cellID] = new QuadTreeValue(new Vector2(c.transform.position.x - c.outerRadius, c.transform.position.y + c.outerRadius), new Vector2(c.outerRadius * 2, c.outerRadius * 2));
+            quadtree.Add(values[c.cellID]);
+        }
+        toBeAdded.Clear();
     }
 
     /// <summary>
@@ -186,12 +198,28 @@ public class Field : MonoBehaviour
     /// </summary>
     public void RemoveCell(Cell c)
     {
-        // You can do checks or events here if needed
-        cells.Remove(c);
-        if( c == selectedCell)
+        toBeRemoved.Add(c.cellID);
+    }
+
+    public void ActuallyRemoveCells()
+    {
+        foreach (int id in toBeRemoved)
         {
-            selectedCell = null; // Deselect if we were selected
+            if (cells.ContainsKey(id))
+            {
+                Cell c = cells[id];
+                if( c == selectedCell)
+                {
+                    selectedCell = null; // Deselect if we were selected
+                }
+                cells.Remove(id);
+                QuadTreeValue value = values[id];
+                value.quadTreeNode.Remove(value);
+                values.Remove(id);
+                Destroy(c.gameObject);
+            }
         }
+        toBeRemoved.Clear();
     }
 
     /// <summary>
@@ -208,8 +236,9 @@ public class Field : MonoBehaviour
             // e.g. find which cell was clicked
             float closestDistance = float.MaxValue;
             Cell clickedCell = null;
-            foreach (Cell c in cells)
+            foreach (var kvp in cells)
             {
+                Cell c = kvp.Value;
                 float dist = Vector2.Distance(clickWorldPos, c.transform.position);
                 if (dist < c.innerRadius && dist < closestDistance)
                 {
@@ -245,8 +274,9 @@ public class Field : MonoBehaviour
 
             float closestDistance = float.MaxValue;
             Cell clickedCell = null;
-            foreach (Cell c in cells)
+            foreach (var kvp in cells)
             {
+                Cell c = kvp.Value;
                 float dist = Vector2.Distance(clickWorldPos, c.transform.position);
                 if (dist < c.innerRadius && dist < closestDistance)
                 {
@@ -277,8 +307,9 @@ public class Field : MonoBehaviour
 
         var overlaps = new List<Collider2D>(16);
 
-        foreach (Cell cA in cells)
+        foreach (var kvp in cells)
         {
+            Cell cA = kvp.Value;
             if (!cA.outerCollider) continue;
 
             overlaps.Clear();
@@ -531,7 +562,7 @@ public class Field : MonoBehaviour
         display.Render();
     }
 
-    public List<Cell> GetAllCells(){
+    public Dictionary<int, Cell> GetAllCells(){
         return cells;
     }
 

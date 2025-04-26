@@ -15,6 +15,10 @@ public class Cell : MonoBehaviour
     [Tooltip("A unique ID assigned by the Field script at spawn time.")]
     public int cellID;
 
+    public bool dead;
+
+    public static int nextCellId = 0;
+
     [Tooltip("Inner radius used for collision & darker color.")]
     public float innerRadius;
 
@@ -144,12 +148,12 @@ public class Cell : MonoBehaviour
             sameFlock.OnCellAdded(childB);
         }*/
 
-        DestroySelf();
+        RemoveSelf();
 
         return new Cell[]{childA, childB};
     }
 
-    public void DestroySelf()
+    public void RemoveSelf()
     {
         if(behavior != null)
         {
@@ -157,9 +161,6 @@ public class Cell : MonoBehaviour
         }
         // 3) Remove ourselves from field
         field.RemoveCell(this);
-
-        // 4) Finally destroy ourselves
-        Destroy(gameObject);
     }
 
     /// <summary>
@@ -177,7 +178,6 @@ public class Cell : MonoBehaviour
     )
     {
         return Cell.NewBuilder()
-            .SetGameObjectName("child")
             .SetOuterRadius(outerR)
             .SetInnerRadius(innerR)
             .SetColor(col)
@@ -228,8 +228,6 @@ public class Cell : MonoBehaviour
         private Field field = null;
         private ICellBehavior behavior = null;
 
-        private string gameObjectName = "Cell_Child";
-
         private Vector2 position = Vector2.zero; // default position
 
         public CellBuilder SetPosition(Vector2 pos)
@@ -240,11 +238,6 @@ public class Cell : MonoBehaviour
 
         // -------- Fluent Setters --------
 
-        public CellBuilder SetCellID(int id)
-        {
-            cellID = id;
-            return this;
-        }
         public CellBuilder SetInnerRadius(float r)
         {
             innerRadius = r;
@@ -307,11 +300,6 @@ public class Cell : MonoBehaviour
             behavior = b;
             return this;
         }
-        public CellBuilder SetGameObjectName(string name)
-        {
-            gameObjectName = name;
-            return this;
-        }
 
         // -------- Build Methods --------
 
@@ -320,7 +308,7 @@ public class Cell : MonoBehaviour
         /// </summary>
         public Cell Build()
         {
-            GameObject go = new GameObject(gameObjectName);
+            GameObject go = new GameObject();
             return Configure(go);
         }
 
@@ -383,7 +371,8 @@ public class Cell : MonoBehaviour
             cell.behavior = behavior;
 
             // 5) Provide a unique ID
-            cell.cellID = cell.GetInstanceID();
+            cell.cellID = Cell.nextCellId++;
+            cell.gameObject.name = "cell_" + cell.cellID;
 
             if(field != null)
                 field.AddCell(cell);

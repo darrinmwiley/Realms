@@ -74,6 +74,7 @@ public class BoidsBehavior : ICellBehavior
         HandleTimeBasedSplitting(cell);
 
         // 2) Leader updates goal state
+        // TODO: make this a bit more robust, e.g. if the leader is destroyed, we need to pick a new one
         if (IsLeader(cell))
         {
             UpdateGoalState();
@@ -123,9 +124,10 @@ public class BoidsBehavior : ICellBehavior
     {
         if (me == null || me.field == null) return false;
 
-        List<Cell> allCells = me.field.GetAllCells();
-        foreach (Cell other in allCells)
+        Dictionary<int, Cell> allCells = me.field.GetAllCells();
+        foreach (var kvp in allCells)
         {
+            Cell other = kvp.Value;
             if (other == me) continue;
             // Is 'other' a predator?
             if (other.outerRadius >= me.outerRadius * predatorSizeFactor)
@@ -134,7 +136,7 @@ public class BoidsBehavior : ICellBehavior
                 if (dist < other.outerRadius)
                 {
                     // EATEN
-                    me.DestroySelf();
+                    me.RemoveSelf();
                     return true;
                 }
             }
@@ -307,9 +309,10 @@ public class BoidsBehavior : ICellBehavior
 
         if (me.field == null) return force;
 
-        List<Cell> allCells = me.field.GetAllCells(); 
-        foreach (Cell other in allCells)
+        Dictionary<int, Cell> allCells = me.field.GetAllCells(); 
+        foreach (var kvp in allCells)
         {
+            Cell other = kvp.Value;
             if (other == me) continue;
 
             if (other.outerRadius >= me.outerRadius * predatorSizeFactor)

@@ -167,6 +167,20 @@ public class QuadTreeNode
         };
     }
 
+    public int GetSize()
+    {
+        int sum = values.Count;
+        for(int i = 0;i<4;i++)
+        {
+            if(children[i] != null)
+            {
+                sum += children[i].GetSize();
+            }
+        }
+        return sum;
+    }
+
+
     public void Add(QuadTreeValue value)
     {
         // Check if the value is outside the bounds of this node
@@ -196,42 +210,23 @@ public class QuadTreeNode
         value.quadTreeNode = this;
     }
 
+    //todo: do cleanup offline, seems we encounter lots of accidental distructions.
+    //during cell updates, add a node to the "needs removal" list if it has no children or values
+    //
+
     public void UpdateValue(QuadTreeValue value)
     {
-        Remove(value);
+        Remove(value, false);
         root.Add(value);
         if(setChildren == 0 && values.Count == 0)
         {
             Destroy();
         }
-        /*if(!bbox.Contains(value.bbox))
-        {
-            Remove(value);
-            if(parent != null)
-                parent.Add(value);
-            //else need to resize - TODO
-            if(setChildren == 0 && values.Count == 0)
-            {
-                Destroy();
-            }
-        }
-        for(int i = 0;i<4;i++)
-        {
-            if(value.bbox.Inside(quadrantBBoxes[i]))
-            {
-                if(children[i] == null)
-                {
-                    children[i] = new QuadTreeNode(quadrantBBoxes[i].tl, quadrantBBoxes[i].size, i, this);
-                    setChildren++;
-                }
-                Remove(value);
-                children[i].Add(value);
-            }
-        }*/
     }
 
-    public void Remove(QuadTreeValue value)
+    public void Remove(QuadTreeValue value, bool destroyIfEmpty = true)
     {
+        int initialCount = values.Count;
         if(value.linkedListNode != null)
         {
             values.Remove(value.linkedListNode);
@@ -240,6 +235,10 @@ public class QuadTreeNode
         if(value.quadTreeNode != null)
         {
             value.quadTreeNode = null;
+        }
+        if(values.Count == 0 && setChildren == 0 && destroyIfEmpty)
+        {
+            Destroy();
         }
     }
 
@@ -253,18 +252,14 @@ public class QuadTreeNode
                 children[i] = null;
             }
         }
-        if(parent != null)
-        {
-            parent.children[TOP_LEFT] = null;
-            parent.children[TOP_RIGHT] = null;
-            parent.children[BOTTOM_LEFT] = null;
-            parent.children[BOTTOM_RIGHT] = null;
-        }
-        parent.children[orientation] = null;
-        parent.setChildren--;
-        if(parent.setChildren == 0 && parent.values.Count == 0)
-        {
-            parent.Destroy();
+
+        if(parent != null){
+            parent.children[orientation] = null;
+            parent.setChildren--;
+            if(parent.setChildren == 0 && parent.values.Count == 0)
+            {
+                parent.Destroy();
+            }
         }
     }
 
