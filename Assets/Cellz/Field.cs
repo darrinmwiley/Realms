@@ -65,12 +65,41 @@ public class Field : MonoBehaviour
 
     [Header("Compute‐Shader (Mode 2)")]
     public ComputeShader voronoiComputeShader;
+    public ComputeShader edgeComputeShader;
     public int threadGroupSize = 8;
     private ComputeBuffer cellComputeBuffer;
     private ComputeBuffer _emptyNeighBuf;
 
+    [Header("GPU Resources")]
+    public RenderTexture rt;      // display’s color RT (exposed in Display.cs)
+    private RenderTexture idRT;   // per-pixel winner IDs
+    private ComputeBuffer cellColorsBuf;  // lookup table: cellID → color
+
     private void Start()
     {
+        // 1) Create/replace the color RT (if not done in Display)
+        int w = display.GetWidth(), h = display.GetHeight();
+        rt = new RenderTexture(w, h, 0, RenderTextureFormat.ARGB32)
+        {
+            enableRandomWrite = true,
+            filterMode       = FilterMode.Point,
+            wrapMode         = TextureWrapMode.Clamp
+        };
+        rt.Create();
+        display.rt = rt;
+
+        // 2) Create the ID RT
+        idRT = new RenderTexture(w, h, 0, RenderTextureFormat.RInt)
+        {
+            enableRandomWrite = true,
+            filterMode       = FilterMode.Point,
+            wrapMode         = TextureWrapMode.Clamp
+        };
+        idRT.Create();
+
+        // 3) Prepare the cell‐color lookup buffer (will be updated each frame)
+        cellColorsBuf = new ComputeBuffer(circleCount, sizeof(float) * 4);
+
         _emptyNeighBuf = new ComputeBuffer(1, sizeof(float)*4);
         _emptyNeighBuf.SetData(new Vector4[]{ Vector4.zero });
 
@@ -83,14 +112,17 @@ public class Field : MonoBehaviour
             return;
         }
 
-        AddIdleCell();
-        AddIdleCell();
+        for(int i = 0;i<1000;i++){
+            AddIdleCell();
+        }
         //AddBoidsCell();
     }
 
     void OnDestroy()
     {
-        if (_emptyNeighBuf != null) _emptyNeighBuf.Release();
+        cellColorsBuf?.Release();
+        _emptyNeighBuf?.Release();
+        idRT?.Release();
     }
 
     private void Update()
@@ -99,14 +131,21 @@ public class Field : MonoBehaviour
         HandleCellSelection(); // left-click
         HandleCellSplit();     // right-click
 
-        if(!gpuRendering){
-            DrawVoronoiToDisplay();
-            display.Render();
+        if (!gpuRendering)
+        {
+            // ——— CPU path ———
+            display.Clear();
+            DrawVoronoiToDisplay();   // calls SetPixel on `texture`
         }
-        else{
-            DispatchVoronoiPerCell();
-            display.PullRenderTextureIntoTexture2D();
+        else
+        {
+            // ——— GPU path ———
+            DispatchVoronoiPerCell(); // should only clear+write the RT
+            display.PullRTToTexture(); 
         }
+
+        display.Render(); // only if your sprite uses the Texture2D
+
         if(useQuadTree)
             quadtree.Draw(display, new Vector2(voronoiX, voronoiY + voronoiHeight), new Vector2(voronoiWidth, voronoiHeight));
         
@@ -123,97 +162,115 @@ public class Field : MonoBehaviour
 
     private void DispatchVoronoiPerCell()
     {
-        display.Clear();
+        // 0) Clear both RTs
+        display.ClearRT();              // blit black into rt
+        var oldRT = RenderTexture.active;
+        RenderTexture.active = idRT;
+        GL.Clear(false, true, Color.clear);
+        RenderTexture.active = oldRT;
 
         int pw = display.GetWidth(), ph = display.GetHeight();
         float invW = pw  / voronoiWidth;
         float invH = ph  / voronoiHeight;
 
-        int kernel = voronoiComputeShader.FindKernel("CSPerCell");
+        // —— Build a compact mapping from arbitrary cellID → [0..N-1] index
+        var cellIDs = new List<int>(cells.Keys);
+        var idToIndex = new Dictionary<int,int>(cellIDs.Count);
+        for (int i = 0; i < cellIDs.Count; i++)
+            idToIndex[cellIDs[i]] = i;
 
-        // Optional: let you control which layers count as “cells”
-        LayerMask mask = Physics2D.DefaultRaycastLayers;
+        // —— Prepare the CellColors buffer once, with dummy slot at 0
+        int N = cellIDs.Count;
+        Vector4[] cols = new Vector4[N + 1];
+        cols[0] = backgroundColor;               // index 0 = background
+        for (int i = 0; i < N; i++)
+        {
+            var c = cells[cellIDs[i]];
+            cols[i+1] = c.color;                  // slot (index+1) holds that cell’s color
+        }
+        if (cellColorsBuf == null || cellColorsBuf.count != cols.Length)
+        {
+            cellColorsBuf?.Release();
+            cellColorsBuf = new ComputeBuffer(cols.Length, sizeof(float)*4);
+        }
+        cellColorsBuf.SetData(cols);
 
+        // —— PASS 1: write mapped IDs into idRT —— 
+        int kernel1 = voronoiComputeShader.FindKernel("CSPerCell");
         foreach (var c in cells.Values)
         {
-            // 1) pixel AABB same as before…
+            int mappedIDplus1 = idToIndex[c.cellID] + 1; 
+            // compute pixel bounds...
             Vector2 wMin = (Vector2)c.transform.position - Vector2.one * c.outerRadius;
             Vector2 wMax = (Vector2)c.transform.position + Vector2.one * c.outerRadius;
             int minX = Mathf.Clamp(Mathf.FloorToInt((wMin.x - voronoiX) * invW), 0, pw);
             int minY = Mathf.Clamp(Mathf.FloorToInt((wMin.y - voronoiY) * invH), 0, ph);
             int maxX = Mathf.Clamp(Mathf.CeilToInt ((wMax.x - voronoiX) * invW), 0, pw);
             int maxY = Mathf.Clamp(Mathf.CeilToInt ((wMax.y - voronoiY) * invH), 0, ph);
+            int w = maxX - minX, h = maxY - minY;
+            if (w <= 0 || h <= 0) continue;
 
-            int regionW = maxX - minX;
-            int regionH = maxY - minY;
-            if (regionW <= 0 || regionH <= 0) continue;
-
-            // 2) NEW: get neighbors via OverlapCircleAll
-            Collider2D[] hits = Physics2D.OverlapCircleAll(
-                c.transform.position,
-                c.outerRadius,
-                mask
-            );
-
-            // build unique list of other cell IDs
-            List<Vector4> nbData = new List<Vector4>();
+            // gather neighbors...
+            Collider2D[] hits = Physics2D.OverlapCircleAll(c.transform.position, c.outerRadius);
+            var nbList = new List<Vector4>();
             foreach (var col in hits)
-            {
-                var oc = col.GetComponentInParent<Cell>();
-                if (oc != null && oc.cellID != c.cellID)
-                {
-                    // pack (pos.x, pos.y, invRadius, 0)
-                    nbData.Add(new Vector4(
-                        oc.transform.position.x,
-                        oc.transform.position.y,
-                        1f / oc.outerRadius,
-                        0f
-                    ));
-                }
-            }
-
-            int nCount = nbData.Count;
+                if (col.TryGetComponent<Cell>(out var oc) && oc.cellID != c.cellID)
+                    nbList.Add(new Vector4(oc.transform.position.x,
+                                        oc.transform.position.y,
+                                        1f/oc.outerRadius, 0f));
+            int nCount = nbList.Count;
             voronoiComputeShader.SetInt("neighborCount", nCount);
 
-            // bind either your real buffer or the empty fallback
             ComputeBuffer nbBuf = null;
             if (nCount > 0)
             {
                 nbBuf = new ComputeBuffer(nCount, sizeof(float)*4);
-                nbBuf.SetData(nbData);
-                voronoiComputeShader.SetBuffer(kernel, "Neighbors", nbBuf);
+                nbBuf.SetData(nbList.ToArray());
+                voronoiComputeShader.SetBuffer(kernel1, "Neighbors", nbBuf);
             }
             else
             {
-                voronoiComputeShader.SetBuffer(kernel, "Neighbors", _emptyNeighBuf);
+                voronoiComputeShader.SetBuffer(kernel1, "Neighbors", _emptyNeighBuf);
             }
 
-            // 3) bind the rest exactly as before…
+            // bind uniforms + UAVs
             voronoiComputeShader.SetVector("cellCenter", new Vector4(
-                c.transform.position.x,
-                c.transform.position.y, 0f, 0f
-            ));
-            voronoiComputeShader.SetFloat("invRadius", 1f / c.outerRadius);
-            voronoiComputeShader.SetVector("baseColor", c.color);
-            voronoiComputeShader.SetInts("minPixel", minX, minY);
-            voronoiComputeShader.SetInts("maxPixel", maxX, maxY);
-            voronoiComputeShader.SetFloat("invW", invW);
-            voronoiComputeShader.SetFloat("invH", invH);
-            voronoiComputeShader.SetFloat("originX", voronoiX);
-            voronoiComputeShader.SetFloat("originY", voronoiY);
-            voronoiComputeShader.SetTexture(kernel, "Result", display.rt);
+                c.transform.position.x, c.transform.position.y, 0f, 0f));
+            voronoiComputeShader.SetInt   ("cellID",      mappedIDplus1);
+            voronoiComputeShader.SetFloat ("invRadius",   1f / c.outerRadius);
+            voronoiComputeShader.SetInts  ("minPixel",    minX, minY);
+            voronoiComputeShader.SetInts  ("maxPixel",    maxX, maxY);
+            voronoiComputeShader.SetFloat ("invW",        invW);
+            voronoiComputeShader.SetFloat ("invH",        invH);
+            voronoiComputeShader.SetFloat ("originX",     voronoiX);
+            voronoiComputeShader.SetFloat ("originY",     voronoiY);
+            voronoiComputeShader.SetTexture(kernel1, "IDResult", idRT);
 
-            // 4) dispatch
-            int gx = Mathf.CeilToInt(regionW  / (float)threadGroupSize);
-            int gy = Mathf.CeilToInt(regionH  / (float)threadGroupSize);
-            voronoiComputeShader.Dispatch(kernel, gx, gy, 1);
+            int gx1 = Mathf.CeilToInt(w / (float)threadGroupSize);
+            int gy1 = Mathf.CeilToInt(h / (float)threadGroupSize);
+            voronoiComputeShader.Dispatch(kernel1, gx1, gy1, 1);
 
-            // cleanup
-            if (nbBuf != null) nbBuf.Release();
+            nbBuf?.Release();
         }
 
-        // finally, pull RT into your Texture2D or blit to screen...
+        // —— PASS 2: edge detect & final color —— 
+        int kernel2 = edgeComputeShader.FindKernel("CSMain");
+        edgeComputeShader.SetInts   ("texSize",     pw, ph);
+        edgeComputeShader.SetVector ("borderColor", borderColor);
+        edgeComputeShader.SetVector ("bgColor",     backgroundColor);
+        edgeComputeShader.SetBuffer (kernel2, "CellColors",  cellColorsBuf);
+        edgeComputeShader.SetTexture(kernel2, "IDTex",       idRT);
+        edgeComputeShader.SetTexture(kernel2, "OutputTex",   rt);
+
+        int gx2 = Mathf.CeilToInt(pw / 8f);
+        int gy2 = Mathf.CeilToInt(ph / 8f);
+        edgeComputeShader.Dispatch(kernel2, gx2, gy2, 1);
+
+        // Pull the result back into the CPU texture
+        display.PullRTToTexture();
     }
+
+
 
 
 

@@ -1,48 +1,57 @@
 // VoronoiPerCell.compute
-
-// 1) Declare which C# kernel we’re implementing:
 #pragma kernel CSPerCell
 
-// 2) All your global UAV/SRV/uniform defs:
-RWTexture2D<float4>       Result;
-StructuredBuffer<float4>  Neighbors;
-int                       neighborCount;
-float4                    cellCenter;
-float                     invRadius;
-float4                    baseColor;
-int2                      minPixel;
-int2                      maxPixel;
-float                     invW;
-float                     invH;
-float                     originX;
-float                     originY;
+// ——— Global UAV/SRV/uniform defs ———
 
-// 3) Thread‐group size must match your C#         [numthreads]
+// Where we write the winning cell’s ID
+RWTexture2D<uint>        IDResult;
+
+// List of neighbors: (center.x, center.y, invRadius, unused)
+StructuredBuffer<float4> Neighbors;
+int                      neighborCount;
+
+// Per-cell parameters
+uint                     cellID;
+float4                   cellCenter;  // .xy = world-space center
+float                    invRadius;   // = 1.0 / outerRadius
+
+// Pixel bounds for this dispatch
+int2                     minPixel;    // inclusive
+int2                     maxPixel;    // exclusive
+
+// Mapping from pixel → world
+float                    invW;        // = texWidth  / worldWidth
+float                    invH;        // = texHeight / worldHeight
+float                    originX;     // world X of pixel (0,0)
+float                    originY;     // world Y of pixel (0,0)
+
+// Must match your C# threadGroupSize (e.g. 8×8)
 [numthreads(8, 8, 1)]
-void CSPerCell(uint3 dispatchThreadID : SV_DispatchThreadID)
+void CSPerCell(uint3 pid : SV_DispatchThreadID)
 {
-    // Compute the pixel coordinates
-    int px = minPixel.x + dispatchThreadID.x;
-    int py = minPixel.y + dispatchThreadID.y;
+    // 1) Compute absolute pixel coords
+    int px = minPixel.x + pid.x;
+    int py = minPixel.y + pid.y;
     if (px >= maxPixel.x || py >= maxPixel.y) return;
 
-    // Reconstruct world‐pos and fraction
+    // 2) Reconstruct world-space position of this pixel
     float worldX = (px / invW) + originX;
     float worldY = (py / invH) + originY;
-    float2 worldPos = float2(worldX, worldY);
-    float2 d = worldPos - cellCenter.xy;
-    float frac = dot(d,d) * (invRadius * invRadius);
+
+    // 3) Test against this cell’s circle
+    float2 d = float2(worldX, worldY) - cellCenter.xy;
+    float frac = dot(d, d) * (invRadius * invRadius);
     if (frac > 1.0) return;
 
-    // Compare to neighbors
+    // 4) Cull by any closer neighbour
     for (int i = 0; i < neighborCount; i++)
     {
         float4 n = Neighbors[i];
-        float2 nd = worldPos - n.xy;
-        float nFrac = dot(nd,nd) * (n.z * n.z);
-        if (nFrac < frac) return;
+        float2 nd = float2(worldX, worldY) - n.xy;
+        if (dot(nd, nd) * (n.z * n.z) < frac)
+            return;
     }
 
-    // Write the winning color
-    Result[uint2(px, py)] = baseColor;
+    // 5) We win → write our cellID
+    IDResult[uint2(px, py)] = cellID;
 }
