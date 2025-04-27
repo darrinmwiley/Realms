@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
 /// Represents one "cell":
@@ -41,6 +42,24 @@ public class Cell : MonoBehaviour
 
     [Tooltip("Maximum acceleration (units/sec^2) for AI or user input.")]
     public float maxAcceleration = 30f;
+
+    public HashSet<int> neighborIds = new HashSet<int>();
+
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        var oc = other.GetComponentInParent<Cell>();
+        if (oc != null && oc.cellID != this.cellID)
+            neighborIds.Add(oc.cellID);
+        Debug.Log("Cell " + cellID + " entered trigger with cell " + oc.cellID);
+    }
+
+    void OnTriggerExit2D(Collider2D other)
+    {
+        var oc = other.GetComponentInParent<Cell>();
+        if (oc != null)
+            neighborIds.Remove(oc.cellID);
+            Debug.Log("Cell " + cellID + " exited trigger with cell " + oc.cellID);
+    }
 
     /// <summary>
     /// The assigned behavior that will steer this cell (Idle, Boids, etc.).

@@ -11,7 +11,7 @@ public class Display : MonoBehaviour
 
     // We'll create these in Awake so we can blit black:
     private Texture2D blackTex;      // 1×1 black texture
-    private RenderTexture rt;        // same size as 'texture'
+    public RenderTexture rt;        // same size as 'texture'
 
     void Awake()
     {
@@ -51,9 +51,13 @@ public class Display : MonoBehaviour
         blackTex.Apply();
 
         // Create a RenderTexture of the same dimensions
-        rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
-        rt.filterMode = FilterMode.Point;
-        rt.wrapMode = TextureWrapMode.Clamp;
+        rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32)
+        {
+            enableRandomWrite = true,
+            filterMode       = FilterMode.Point,
+            wrapMode         = TextureWrapMode.Clamp
+        };
+        rt.Create();
         // ----------------------------------------------------
     }
 
@@ -129,6 +133,18 @@ public class Display : MonoBehaviour
     public void Render()
     {
         texture.Apply();
+    }
+
+    public void PullRenderTextureIntoTexture2D()
+    {
+        // 1) Remember current RT
+        var old = RenderTexture.active;
+        // 2) Set ours active and read it
+        RenderTexture.active = rt;
+        texture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+        texture.Apply();
+        // 3) Restore
+        RenderTexture.active = old;
     }
 
     void Update()

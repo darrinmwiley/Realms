@@ -59,10 +59,23 @@ public class Field : MonoBehaviour
     private Cell selectedCell = null;
 
     QuadTreeNode quadtree;
+    private bool useQuadTree = false;
+
+    public bool gpuRendering = false;
+
+    [Header("Compute‐Shader (Mode 2)")]
+    public ComputeShader voronoiComputeShader;
+    public int threadGroupSize = 8;
+    private ComputeBuffer cellComputeBuffer;
+    private ComputeBuffer _emptyNeighBuf;
 
     private void Start()
     {
-        quadtree = new QuadTreeNode(new Vector2(-300, 300), new Vector2(600 , 600));
+        _emptyNeighBuf = new ComputeBuffer(1, sizeof(float)*4);
+        _emptyNeighBuf.SetData(new Vector4[]{ Vector4.zero });
+
+        if(useQuadTree)
+            quadtree = new QuadTreeNode(new Vector2(-300, 300), new Vector2(600 , 600));
 
         if (display == null)
         {
@@ -71,8 +84,13 @@ public class Field : MonoBehaviour
         }
 
         AddIdleCell();
-        //AddIdleCell();
-        AddBoidsCell();
+        AddIdleCell();
+        //AddBoidsCell();
+    }
+
+    void OnDestroy()
+    {
+        if (_emptyNeighBuf != null) _emptyNeighBuf.Release();
     }
 
     private void Update()
@@ -81,9 +99,17 @@ public class Field : MonoBehaviour
         HandleCellSelection(); // left-click
         HandleCellSplit();     // right-click
 
-        DrawVoronoiToDisplay();
-        quadtree.Draw(display, new Vector2(voronoiX, voronoiY + voronoiHeight), new Vector2(voronoiWidth, voronoiHeight));
-        display.Render();
+        if(!gpuRendering){
+            DrawVoronoiToDisplay();
+            display.Render();
+        }
+        else{
+            DispatchVoronoiPerCell();
+            display.PullRenderTextureIntoTexture2D();
+        }
+        if(useQuadTree)
+            quadtree.Draw(display, new Vector2(voronoiX, voronoiY + voronoiHeight), new Vector2(voronoiWidth, voronoiHeight));
+        
         // Left-mouse button clicked during this frame?
         if (Input.GetMouseButtonDown(0))
         {
@@ -95,6 +121,102 @@ public class Field : MonoBehaviour
         }
     }
 
+    private void DispatchVoronoiPerCell()
+    {
+        display.Clear();
+
+        int pw = display.GetWidth(), ph = display.GetHeight();
+        float invW = pw  / voronoiWidth;
+        float invH = ph  / voronoiHeight;
+
+        int kernel = voronoiComputeShader.FindKernel("CSPerCell");
+
+        // Optional: let you control which layers count as “cells”
+        LayerMask mask = Physics2D.DefaultRaycastLayers;
+
+        foreach (var c in cells.Values)
+        {
+            // 1) pixel AABB same as before…
+            Vector2 wMin = (Vector2)c.transform.position - Vector2.one * c.outerRadius;
+            Vector2 wMax = (Vector2)c.transform.position + Vector2.one * c.outerRadius;
+            int minX = Mathf.Clamp(Mathf.FloorToInt((wMin.x - voronoiX) * invW), 0, pw);
+            int minY = Mathf.Clamp(Mathf.FloorToInt((wMin.y - voronoiY) * invH), 0, ph);
+            int maxX = Mathf.Clamp(Mathf.CeilToInt ((wMax.x - voronoiX) * invW), 0, pw);
+            int maxY = Mathf.Clamp(Mathf.CeilToInt ((wMax.y - voronoiY) * invH), 0, ph);
+
+            int regionW = maxX - minX;
+            int regionH = maxY - minY;
+            if (regionW <= 0 || regionH <= 0) continue;
+
+            // 2) NEW: get neighbors via OverlapCircleAll
+            Collider2D[] hits = Physics2D.OverlapCircleAll(
+                c.transform.position,
+                c.outerRadius,
+                mask
+            );
+
+            // build unique list of other cell IDs
+            List<Vector4> nbData = new List<Vector4>();
+            foreach (var col in hits)
+            {
+                var oc = col.GetComponentInParent<Cell>();
+                if (oc != null && oc.cellID != c.cellID)
+                {
+                    // pack (pos.x, pos.y, invRadius, 0)
+                    nbData.Add(new Vector4(
+                        oc.transform.position.x,
+                        oc.transform.position.y,
+                        1f / oc.outerRadius,
+                        0f
+                    ));
+                }
+            }
+
+            int nCount = nbData.Count;
+            voronoiComputeShader.SetInt("neighborCount", nCount);
+
+            // bind either your real buffer or the empty fallback
+            ComputeBuffer nbBuf = null;
+            if (nCount > 0)
+            {
+                nbBuf = new ComputeBuffer(nCount, sizeof(float)*4);
+                nbBuf.SetData(nbData);
+                voronoiComputeShader.SetBuffer(kernel, "Neighbors", nbBuf);
+            }
+            else
+            {
+                voronoiComputeShader.SetBuffer(kernel, "Neighbors", _emptyNeighBuf);
+            }
+
+            // 3) bind the rest exactly as before…
+            voronoiComputeShader.SetVector("cellCenter", new Vector4(
+                c.transform.position.x,
+                c.transform.position.y, 0f, 0f
+            ));
+            voronoiComputeShader.SetFloat("invRadius", 1f / c.outerRadius);
+            voronoiComputeShader.SetVector("baseColor", c.color);
+            voronoiComputeShader.SetInts("minPixel", minX, minY);
+            voronoiComputeShader.SetInts("maxPixel", maxX, maxY);
+            voronoiComputeShader.SetFloat("invW", invW);
+            voronoiComputeShader.SetFloat("invH", invH);
+            voronoiComputeShader.SetFloat("originX", voronoiX);
+            voronoiComputeShader.SetFloat("originY", voronoiY);
+            voronoiComputeShader.SetTexture(kernel, "Result", display.rt);
+
+            // 4) dispatch
+            int gx = Mathf.CeilToInt(regionW  / (float)threadGroupSize);
+            int gy = Mathf.CeilToInt(regionH  / (float)threadGroupSize);
+            voronoiComputeShader.Dispatch(kernel, gx, gy, 1);
+
+            // cleanup
+            if (nbBuf != null) nbBuf.Release();
+        }
+
+        // finally, pull RT into your Texture2D or blit to screen...
+    }
+
+
+
     private void FixedUpdate()
     {
         float dt = Time.fixedDeltaTime;
@@ -102,10 +224,13 @@ public class Field : MonoBehaviour
         foreach (var kvp in cells)
         {
             Cell c = kvp.Value;
-            QuadTreeValue value = values[c.cellID];
-            value.bbox.tl = new Vector2(c.transform.position.x - c.outerRadius, c.transform.position.y + c.outerRadius);
-            value.bbox.size = new Vector2(c.outerRadius * 2, c.outerRadius * 2);
-            value.UpdateTree();
+            if(useQuadTree)
+            {
+                QuadTreeValue value = values[c.cellID];
+                value.bbox.tl = new Vector2(c.transform.position.x - c.outerRadius, c.transform.position.y + c.outerRadius);
+                value.bbox.size = new Vector2(c.outerRadius * 2, c.outerRadius * 2);
+                value.UpdateTree();
+            }
             c.HandleGrowth();
             c.behavior?.PerformBehavior(dt, c, this);
         }
@@ -187,8 +312,12 @@ public class Field : MonoBehaviour
         {
             // You can do checks or events here if needed
             cells[c.cellID] = c;
-            values[c.cellID] = new QuadTreeValue(new Vector2(c.transform.position.x - c.outerRadius, c.transform.position.y + c.outerRadius), new Vector2(c.outerRadius * 2, c.outerRadius * 2));
-            quadtree.Add(values[c.cellID]);
+            if(useQuadTree)
+            {
+                values[c.cellID] = new QuadTreeValue(new Vector2(c.transform.position.x - c.outerRadius, c.transform.position.y + c.outerRadius), new Vector2(c.outerRadius * 2, c.outerRadius * 2));
+                quadtree.Add(values[c.cellID]);  
+            }
+            
         }
         toBeAdded.Clear();
     }
@@ -213,9 +342,12 @@ public class Field : MonoBehaviour
                     selectedCell = null; // Deselect if we were selected
                 }
                 cells.Remove(id);
-                QuadTreeValue value = values[id];
-                value.quadTreeNode.Remove(value);
-                values.Remove(id);
+                if(useQuadTree)
+                {
+                    QuadTreeValue value = values[id];
+                    value.quadTreeNode.Remove(value);
+                    values.Remove(id);
+                }
                 Destroy(c.gameObject);
             }
         }

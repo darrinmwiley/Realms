@@ -273,6 +273,7 @@ MonoBehaviour:
   width: 300
   height: 225
   mainCamera: {fileID: 1142947990}
+  rt: {fileID: 0}
 --- !u!4 &928547148
 Transform:
   m_ObjectHideFlags: 0
@@ -514,3 +515,6 @@ MonoBehaviour:
   backgroundColor: {r: 0, g: 0, b: 0, a: 1}
   innerDarkFactor: 1
   repulsionStrength: 300
+  voronoiComputeShader: {fileID: 7200000, guid: dd2731925040fbf4d913bb7dc3282b2f,
+    type: 3}
+  threadGroupSize: 8

@@ -1,0 +1,48 @@
+// VoronoiPerCell.compute
+
+// 1) Declare which C# kernel we’re implementing:
+#pragma kernel CSPerCell
+
+// 2) All your global UAV/SRV/uniform defs:
+RWTexture2D<float4>       Result;
+StructuredBuffer<float4>  Neighbors;
+int                       neighborCount;
+float4                    cellCenter;
+float                     invRadius;
+float4                    baseColor;
+int2                      minPixel;
+int2                      maxPixel;
+float                     invW;
+float                     invH;
+float                     originX;
+float                     originY;
+
+// 3) Thread‐group size must match your C#         [numthreads]
+[numthreads(8, 8, 1)]
+void CSPerCell(uint3 dispatchThreadID : SV_DispatchThreadID)
+{
+    // Compute the pixel coordinates
+    int px = minPixel.x + dispatchThreadID.x;
+    int py = minPixel.y + dispatchThreadID.y;
+    if (px >= maxPixel.x || py >= maxPixel.y) return;
+
+    // Reconstruct world‐pos and fraction
+    float worldX = (px / invW) + originX;
+    float worldY = (py / invH) + originY;
+    float2 worldPos = float2(worldX, worldY);
+    float2 d = worldPos - cellCenter.xy;
+    float frac = dot(d,d) * (invRadius * invRadius);
+    if (frac > 1.0) return;
+
+    // Compare to neighbors
+    for (int i = 0; i < neighborCount; i++)
+    {
+        float4 n = Neighbors[i];
+        float2 nd = worldPos - n.xy;
+        float nFrac = dot(nd,nd) * (n.z * n.z);
+        if (nFrac < frac) return;
+    }
+
+    // Write the winning color
+    Result[uint2(px, py)] = baseColor;
+}
