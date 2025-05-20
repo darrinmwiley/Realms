@@ -1,22 +1,55 @@
+// Cell.cs
+
 using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Represents one "cell":
+/// Represents one “cell”:
 ///  - Stores the cell’s radii, color, ID
-///  - Holds the rigidbody/collider references
+///  - Holds the Rigidbody2D / CircleCollider2D references
 ///  - Handles collision damping in OnCollisionEnter2D
 ///  - Grows over time, capped at a maximumSize
-///  - Also stores a reference to an ICellBehavior for AI/steering
-///  - Splitting is handled here, so "any place" can call cell.Split().
+///  - Stores a reference to an ICellBehavior for AI/steering
+///  - Splitting is handled here, so any code can call cell.Split()
+///  - Now owns its own Voronoi compute‐shader dispatch via the shared static shader
 /// </summary>
 public class Cell : MonoBehaviour, IRenderable
 {
+    /* ─────────── Static, shared ComputeShader cache ─────────── */
+
+    private const string CS_PATH   = "ComputeShaders/Voronoi"; // under Assets/Resources/
+    private const string CS_KERNEL = "CSPerCell";
+    private const int    TG_SIZE   = 8;                        // matches your shader
+
+    private static ComputeShader _cs;
+    private static int           _kernel;
+    private static bool          _ready;
+    private static ComputeBuffer _dummyNeighborBuf;
+
+    private static void EnsureShaderLoaded()
+    {
+        if (_ready) return;
+        _cs = Resources.Load<ComputeShader>(CS_PATH);
+        if (_cs == null)
+        {
+            Debug.LogError($"Cell: failed to load ComputeShader at Resources/{CS_PATH}.compute");
+            return;
+        }
+        _kernel = _cs.FindKernel(CS_KERNEL);
+
+        _dummyNeighborBuf = new ComputeBuffer(1, sizeof(float) * 4);
+        _dummyNeighborBuf.SetData(new Vector4[] { Vector4.zero });
+
+        _ready = true;
+    }
+
+    /* ─────────── Inspector / runtime fields ─────────── */
+
     [Header("Per-Cell Settings")]
     [Tooltip("A unique ID assigned by the Field script at spawn time.")]
     public int cellID;
 
-    public bool dead;
+    public bool dead;                // not used by rendering
 
     public static int nextCellId = 0;
 
@@ -43,34 +76,16 @@ public class Cell : MonoBehaviour, IRenderable
     [Tooltip("Maximum acceleration (units/sec^2) for AI or user input.")]
     public float maxAcceleration = 30f;
 
-    /// <summary>
-    /// The assigned behavior that will steer this cell (Idle, Boids, etc.).
-    /// </summary>
     [HideInInspector] public ICellBehavior behavior;
-
-    /// <summary>
-    /// The field that spawned us, so we can call field.RemoveCell(this) or field.AddCell(child).
-    /// </summary>
-    [HideInInspector] public Field field;
-
-    /// <summary>
-    /// The rigidbody of this cell for movement, forces, etc.
-    /// </summary>
-    [HideInInspector] public Rigidbody2D rb;
-
-    /// <summary>
-    /// The outer collider, used for Voronoi detection & overlap-based repulsion.
-    /// </summary>
+    [HideInInspector] public Field         field;
+    [HideInInspector] public Rigidbody2D   rb;
     [HideInInspector] public CircleCollider2D outerCollider;
-
-    /// <summary>
-    /// The inner collider for collisions.
-    /// </summary>
     [HideInInspector] public CircleCollider2D innerCollider;
+
+    /* ─────────── Growth ─────────── */
 
     public void HandleGrowth()
     {
-        // Growth logic
         if (outerRadius < maximumSize)
         {
             outerRadius += growthRate * Time.deltaTime;
@@ -80,309 +95,197 @@ public class Cell : MonoBehaviour, IRenderable
             innerRadius = outerRadius * 0.5f;
             UpdateColliderSizes();
         }
-        // Behavior is not called here. It's invoked in Field.FixedUpdate() for sync with physics.
     }
 
-    public void Render(RenderTexture rt, Display d)
-    {
-        
-    }
-
-    /// <summary>
-    /// Updates the attached circle collider radii so the physics shapes match our radius values.
-    /// </summary>
     private void UpdateColliderSizes()
     {
         if (outerCollider) outerCollider.radius = outerRadius;
         if (innerCollider) innerCollider.radius = innerRadius;
     }
 
+    /* ─────────── GPU Voronoi dispatch ─────────── */
+
     /// <summary>
-    /// Splits this cell into two child cells, then removes itself (destroy).
-    /// The logic is fully contained here, so "any place" can call cell.Split().
+    /// Writes this cell’s region into <paramref name="idRT"/> using the shared
+    /// Voronoi compute shader.  Field will colourise / edge-detect afterwards.
     /// </summary>
-    public Cell[] Split()
+    public void Render(
+        RenderTexture idRT,
+        int           mappedIdPlusOne,
+        float         vorX, float vorY,
+        float         vorW, float vorH,
+        int           texW, int texH)
     {
-        // 1) If the old cell is in a BoidsBehavior or some other shared behavior, un-register it
-        if (behavior is BoidsBehavior boidsBeh)
+        EnsureShaderLoaded();
+        if (!_ready) return;
+
+        // compute inv scales
+        float invW = texW / vorW;
+        float invH = texH / vorH;
+
+        Vector2 pos  = transform.position;
+        Vector2 wMin = pos - Vector2.one * outerRadius;
+        Vector2 wMax = pos + Vector2.one * outerRadius;
+
+        int minX = Mathf.Clamp(Mathf.FloorToInt((wMin.x - vorX) * invW), 0, texW);
+        int minY = Mathf.Clamp(Mathf.FloorToInt((wMin.y - vorY) * invH), 0, texH);
+        int maxX = Mathf.Clamp(Mathf.CeilToInt ((wMax.x - vorX) * invW), 0, texW);
+        int maxY = Mathf.Clamp(Mathf.CeilToInt ((wMax.y - vorY) * invH), 0, texH);
+
+        int w = maxX - minX;
+        int h = maxY - minY;
+        if (w <= 0 || h <= 0) return;  // off-screen
+
+        // gather overlapping neighbors
+        Collider2D[] hits = Physics2D.OverlapCircleAll(pos, outerRadius);
+        List<Vector4> nbList = new List<Vector4>();
+        foreach (var col in hits)
+            if (col.TryGetComponent<Cell>(out var oc) && oc.cellID != cellID)
+                nbList.Add(new Vector4(
+                    oc.transform.position.x,
+                    oc.transform.position.y,
+                    1f / oc.outerRadius,
+                    0f));
+
+        ComputeBuffer nbBuf = null;
+        if (nbList.Count > 0)
         {
-            boidsBeh.UnregisterCell(this);
+            _cs.SetInt("neighborCount", nbList.Count);
+            nbBuf = new ComputeBuffer(nbList.Count, sizeof(float) * 4);
+            nbBuf.SetData(nbList.ToArray());
+            _cs.SetBuffer(_kernel, "Neighbors", nbBuf);
+        }
+        else
+        {
+            _cs.SetInt("neighborCount", 0);
+            _cs.SetBuffer(_kernel, "Neighbors", _dummyNeighborBuf);
         }
 
-        // 2) Create two children with half the area => radius = oldRadius / sqrt(2)
+        // set uniforms + UAV
+        _cs.SetVector("cellCenter", new Vector4(pos.x, pos.y, 0f, 0f));
+        _cs.SetFloat ("invRadius", 1f / outerRadius);
+        _cs.SetInt   ("cellID",    mappedIdPlusOne);
+        _cs.SetInts  ("minPixel",  minX, minY);
+        _cs.SetInts  ("maxPixel",  maxX, maxY);
+        _cs.SetFloat ("invW",      invW);
+        _cs.SetFloat ("invH",      invH);
+        _cs.SetFloat ("originX",   vorX);
+        _cs.SetFloat ("originY",   vorY);
+        _cs.SetTexture(_kernel, "IDResult", idRT);
+
+        int gx = Mathf.CeilToInt(w / (float)TG_SIZE);
+        int gy = Mathf.CeilToInt(h / (float)TG_SIZE);
+        _cs.Dispatch(_kernel, gx, gy, 1);
+
+        nbBuf?.Release();
+    }
+
+    /* ─────────── Splitting ─────────── */
+
+    public Cell[] Split()
+    {
+        if (behavior is BoidsBehavior boids) boids.UnregisterCell(this);
+
         float newOuter = outerRadius / Mathf.Sqrt(2f);
         float newInner = newOuter * 0.5f;
 
         Vector2 oldPos = transform.position;
-        Vector2 offset = innerRadius / 8 * Random.insideUnitCircle.normalized;
+        Vector2 offset = innerRadius / 8f * Random.insideUnitCircle.normalized;
 
-        // Child A
-        Cell childA = CreateChildCell(
-            oldPos + offset,
-            newOuter,
-            newInner,
-            rb.mass,
-            color,
-            growthRate,
-            maximumSize
-        );
-
-        // Child B
-        Cell childB = CreateChildCell(
-            oldPos - offset,
-            newOuter,
-            newInner,
-            rb.mass,
-            color,
-            growthRate,
-            maximumSize
-        );
-
-        /* If we had some behavior, let's give it to children too:
-        // (Except for boids, we handle that via boidsBeh.UnregisterCell(...) above
-        //  and re-register them below. But for non-boids, let's simply copy the same behavior reference.)
-        if (!(behavior is BoidsBehavior))
-        {
-            childA.behavior = new IdleBehavior();
-            childB.behavior = new IdleBehavior();
-        }
-
-        // If we were boids, re-register them in the same flock
-        if (behavior is BoidsBehavior sameFlock)
-        {
-            sameFlock.OnCellAdded(childA);
-            sameFlock.OnCellAdded(childB);
-        }*/
+        var childA = CreateChildCell(oldPos + offset, newOuter, newInner, rb.mass, color, growthRate, maximumSize);
+        var childB = CreateChildCell(oldPos - offset, newOuter, newInner, rb.mass, color, growthRate, maximumSize);
 
         RemoveSelf();
-
-        return new Cell[]{childA, childB};
+        return new[] { childA, childB };
     }
 
     public void RemoveSelf()
     {
-        if(behavior != null)
-        {
-            behavior.OnCellDestroyed(this);
-        }
-        // 3) Remove ourselves from field
+        behavior?.OnCellDestroyed(this);
         field.RemoveCell(this);
     }
 
-    /// <summary>
-    /// Internal helper to create a child Cell GameObject.
-    /// Then we call field.AddCell(...) so the Field knows about it.
-    /// </summary>
-    private Cell CreateChildCell(
-        Vector2 position,
-        float outerR,
-        float innerR,
-        float mass,
-        Color col,
-        float growthRate,
-        float maxSize
-    )
+    private Cell CreateChildCell(Vector2 pos, float oR, float iR, float mass, Color col, float gr, float ms)
     {
         return Cell.NewBuilder()
-            .SetOuterRadius(outerR)
-            .SetInnerRadius(innerR)
+            .SetPosition(pos)
+            .SetInnerRadius(iR)
+            .SetOuterRadius(oR)
             .SetColor(col)
-            .SetGrowthRate(growthRate)
-            .SetMaximumSize(maxSize)
+            .SetGrowthRate(gr)
+            .SetMaximumSize(ms)
             .SetMass(mass)
             .SetDrag(rb.drag)
-            .SetAngularDrag(0f)
+            .SetAngularDrag(rb.angularDrag)
             .SetField(field)
-            .SetPosition(position)
-            .SetMaxSpeed(maxSpeed)
-            .SetMaxAcceleration(maxAcceleration)
             .SetBehavior(new IdleBehavior())
-            .Build(); // create the child cell
+            .Build();
     }
 
-    /// <summary>
-    /// Static entry point to create a new builder for Cell.
-    /// Usage:
-    ///   var cell = Cell.NewBuilder()
-    ///       .SetOuterRadius(4f)
-    ///       ...
-    ///       .Build();
-    /// </summary>
     public static CellBuilder NewBuilder() => new CellBuilder();
 
-    /// <summary>
-    /// A fluent builder for creating and configuring a Cell MonoBehaviour.
-    /// </summary>
     public class CellBuilder
     {
-        // Backing fields for each property
-        private int cellID = 0;
+        private int cellID = nextCellId++;
         private float innerRadius = 1f;
         private float outerRadius = 2f;
         private Color color = Color.white;
-
         private float growthRate = 0.5f;
         private float maximumSize = 4f;
-
         private float maxSpeed = 30f;
         private float maxAcceleration = 30f;
-
         private float mass = 10f;
         private float drag = 1f;
         private float angularDrag = 0f;
-
         private Field field = null;
         private ICellBehavior behavior = null;
+        private Vector2 position = Vector2.zero;
 
-        private Vector2 position = Vector2.zero; // default position
+        public CellBuilder SetPosition(Vector2 p)     { position = p;       return this; }
+        public CellBuilder SetInnerRadius(float r)    { innerRadius = r;    return this; }
+        public CellBuilder SetOuterRadius(float r)    { outerRadius = r;    return this; }
+        public CellBuilder SetColor(Color c)          { color = c;          return this; }
+        public CellBuilder SetGrowthRate(float g)     { growthRate = g;     return this; }
+        public CellBuilder SetMaximumSize(float m)    { maximumSize = m;    return this; }
+        public CellBuilder SetMaxSpeed(float s)       { maxSpeed = s;       return this; }
+        public CellBuilder SetMaxAcceleration(float a){ maxAcceleration = a;return this; }
+        public CellBuilder SetMass(float m)           { mass = m;           return this; }
+        public CellBuilder SetDrag(float d)           { drag = d;           return this; }
+        public CellBuilder SetAngularDrag(float a)    { angularDrag = a;    return this; }
+        public CellBuilder SetField(Field f)          { field = f;          return this; }
+        public CellBuilder SetBehavior(ICellBehavior b){ behavior = b;      return this; }
 
-        public CellBuilder SetPosition(Vector2 pos)
-        {
-            position = pos;
-            return this;
-        }
-
-        // -------- Fluent Setters --------
-
-        public CellBuilder SetInnerRadius(float r)
-        {
-            innerRadius = r;
-            return this;
-        }
-        public CellBuilder SetOuterRadius(float r)
-        {
-            outerRadius = r;
-            return this;
-        }
-        public CellBuilder SetColor(Color c)
-        {
-            color = c;
-            return this;
-        }
-
-        public CellBuilder SetGrowthRate(float rate)
-        {
-            growthRate = rate;
-            return this;
-        }
-        public CellBuilder SetMaximumSize(float size)
-        {
-            maximumSize = size;
-            return this;
-        }
-        public CellBuilder SetMaxSpeed(float speed)
-        {
-            maxSpeed = speed;
-            return this;
-        }
-        public CellBuilder SetMaxAcceleration(float accel)
-        {
-            maxAcceleration = accel;
-            return this;
-        }
-        public CellBuilder SetMass(float m)
-        {
-            mass = m;
-            return this;
-        }
-        public CellBuilder SetDrag(float d)
-        {
-            drag = d;
-            return this;
-        }
-        public CellBuilder SetAngularDrag(float ad)
-        {
-            angularDrag = ad;
-            return this;
-        }
-
-        public CellBuilder SetField(Field f)
-        {
-            field = f;
-            return this;
-        }
-        public CellBuilder SetBehavior(ICellBehavior b)
-        {
-            behavior = b;
-            return this;
-        }
-
-        // -------- Build Methods --------
-
-        /// <summary>
-        /// Creates a new GameObject, adds a Cell component, and configures it.
-        /// </summary>
         public Cell Build()
         {
-            GameObject go = new GameObject();
-            return Configure(go);
-        }
-
-        /// <summary>
-        /// Attaches a Cell component to an existing GameObject (if one isn’t already present),
-        /// then configures it.
-        /// </summary>
-        public Cell Build(GameObject existingGameObject)
-        {
-            return Configure(existingGameObject);
-        }
-
-        /// <summary>
-        /// The internal method that actually sets up the Cell’s fields and related components.
-        /// </summary>
-        private Cell Configure(GameObject go)
-        {
+            var go = new GameObject($"cell_{cellID}");
             go.transform.position = position;
-
-            Cell cell = go.GetComponent<Cell>();
-            if (cell == null)
-            {
-                cell = go.AddComponent<Cell>();
-            }
-
-            // 2) Assign basic Cell fields
-            cell.cellID = cellID;
+            var cell = go.AddComponent<Cell>();
+            cell.cellID      = cellID;
             cell.innerRadius = innerRadius;
             cell.outerRadius = outerRadius;
-            cell.color = color;
-            cell.growthRate = growthRate;
+            cell.color       = color;
+            cell.growthRate  = growthRate;
             cell.maximumSize = maximumSize;
-            cell.maxSpeed = maxSpeed;
+            cell.maxSpeed    = maxSpeed;
             cell.maxAcceleration = maxAcceleration;
-            cell.behavior = behavior;
-            cell.field = field;
+            cell.behavior    = behavior;
+            cell.field       = field;
 
-            // 3) Ensure a Rigidbody2D
-            Rigidbody2D rb = go.GetComponent<Rigidbody2D>();
-            if (rb == null)
-            {
-                rb = go.AddComponent<Rigidbody2D>();
-            }
-            rb.gravityScale = 0f;
-            rb.mass = mass;
-            rb.drag = drag;
-            rb.angularDrag = angularDrag;
-            cell.rb = rb;
+            var rb2d = go.AddComponent<Rigidbody2D>();
+            rb2d.gravityScale = 0f;
+            rb2d.mass         = mass;
+            rb2d.drag         = drag;
+            rb2d.angularDrag  = angularDrag;
+            cell.rb = rb2d;
 
-            // 4) Outer & inner colliders
-            CircleCollider2D outerC = go.AddComponent<CircleCollider2D>();
-            outerC.radius = outerRadius;
-            outerC.isTrigger = true;
-            cell.outerCollider = outerC;
+            cell.outerCollider = go.AddComponent<CircleCollider2D>();
+            cell.outerCollider.radius    = outerRadius;
+            cell.outerCollider.isTrigger = true;
 
-            CircleCollider2D innerC = go.AddComponent<CircleCollider2D>();
-            innerC.radius = innerRadius;
-            cell.innerCollider = innerC;
+            cell.innerCollider = go.AddComponent<CircleCollider2D>();
+            cell.innerCollider.radius    = innerRadius;
 
-            cell.behavior = behavior;
-
-            // 5) Provide a unique ID
-            cell.cellID = Cell.nextCellId++;
-            cell.gameObject.name = "cell_" + cell.cellID;
-
-            if(field != null)
-                field.AddCell(cell);
-
+            field?.AddCell(cell);
             return cell;
         }
     }
