@@ -10,7 +10,7 @@ using System.Collections.Generic;
 ///  - Also stores a reference to an ICellBehavior for AI/steering
 ///  - Splitting is handled here, so "any place" can call cell.Split().
 /// </summary>
-public class Cell : MonoBehaviour
+public class Cell : MonoBehaviour, IRenderable
 {
     [Header("Per-Cell Settings")]
     [Tooltip("A unique ID assigned by the Field script at spawn time.")]
@@ -81,6 +81,11 @@ public class Cell : MonoBehaviour
             UpdateColliderSizes();
         }
         // Behavior is not called here. It's invoked in Field.FixedUpdate() for sync with physics.
+    }
+
+    public void Render(RenderTexture rt, Display d)
+    {
+        
     }
 
     /// <summary>
