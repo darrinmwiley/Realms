@@ -211,6 +211,17 @@ public class Field : MonoBehaviour
             colours.Add(b.color);
         }
 
+        // bullets
+        for (int i = 0; i < activeBullets.Count; i++)
+        {
+            var b = activeBullets[i];
+            if (b == null) continue;
+            int map = bulletMapIndices[i];
+            b.Render(idRT, map,
+                     voronoiX, voronoiY, voronoiWidth, voronoiHeight,
+                     pw, ph);
+        }
+
         if (cellColorsBuf == null || cellColorsBuf.count != colours.Count)
         {
             cellColorsBuf?.Release();
@@ -225,17 +236,6 @@ public class Field : MonoBehaviour
         {
             int map = cellIdToMap[c.cellID];          // already +1 offset via colours list
             c.Render(idRT, map,
-                     voronoiX, voronoiY, voronoiWidth, voronoiHeight,
-                     pw, ph);
-        }
-
-        // bullets
-        for (int i = 0; i < activeBullets.Count; i++)
-        {
-            var b = activeBullets[i];
-            if (b == null) continue;
-            int map = bulletMapIndices[i];
-            b.Render(idRT, map,
                      voronoiX, voronoiY, voronoiWidth, voronoiHeight,
                      pw, ph);
         }

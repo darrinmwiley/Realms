@@ -7,13 +7,13 @@ using UnityEngine;
 public class RangedBehavior : ICellBehavior
 {
     // How often the cell shoots a bullet.
-    [SerializeField] private float fireRate = 1.0f; // Bullets per second
+    [SerializeField] private float fireRate = 10f; // Bullets per second
 
     // Speed of the bullet.
     [SerializeField] private float bulletSpeed = 10.0f;
 
     // Radius of the bullet.
-    [SerializeField] private float bulletRadius = 0.2f;
+    [SerializeField] private float bulletRadius = 1f;
 
     // Color of the bullet.
     [SerializeField] private Color bulletColor = Color.red; // Added bullet color
