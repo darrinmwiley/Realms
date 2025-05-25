@@ -503,7 +503,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   display: {fileID: 928547147}
   circleCount: 1
-  spawnRange: {x: 2000, y: 2000}
+  spawnRange: {x: 200, y: 200}
   minCircleRadius: 0.5
   maxCircleRadius: 2
   cameraMoveSpeed: 10
@@ -516,8 +516,6 @@ MonoBehaviour:
   innerDarkFactor: 1
   repulsionStrength: 300
   gpuRendering: 1
-  voronoiComputeShader: {fileID: 7200000, guid: dd2731925040fbf4d913bb7dc3282b2f,
-    type: 3}
   edgeComputeShader: {fileID: 7200000, guid: a1df4a7556db9f640a7dafa772bdb9d8, type: 3}
   threadGroupSize: 8
   rt: {fileID: 0}
