@@ -83,6 +83,9 @@ L-system. `genome.ToSpecies()` builds a normal `CactusSpecies` whose productions
 3. **Colours:** each colour comes whole from one parent.
 4. **Mutation:** each slot mutates with probability `mutation`. Numbers get Gaussian noise of 12% of their range,
    booleans flip, and enums are redrawn.
+   A trait that is absent (its gene at the bottom of its range, e.g. no white flecks or no hair) is only gained by
+   a rare mutation (`GainRate` = 15% of the normal rate), and it starts faint. Without that, absent traits popped up in
+   about 4% of offspring of parents that had neither.
 
 `origin[]` records where each slot came from: wild, parent A or B, or mutated. Form is a discrete gene, so a
 column × pad cross grows as one or the other while carrying the other's architecture genes silently. Those can

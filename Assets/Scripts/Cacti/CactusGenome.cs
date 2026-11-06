@@ -257,7 +257,8 @@ namespace Realms.Cacti
                     if (n == 0 || c.R() < F("shootP"))
                     {
                         float Lc_ = n == 0 ? main : Mathf.Floor(c.Rnd(sMin, sMax + 1));
-                        o.AddRange(Br(M('/', n * 137.5f + c.Rnd(-20, 20)), M('&', 90), M('f', n == 0 ? 0 : F("shootSpread") * (4 + n)), M('^', 90),
+                        // basal shoots sit on a Vogel spiral (golden angle, distance ∝ √n) scaled by stem radius, so they never grow through each other
+                        o.AddRange(Br(M('/', n * 137.5f + c.Rnd(-3, 3)), M('&', 90), M('f', n == 0 ? 0 : Mathf.Max(F("shootSpread") * (4 + n), 2.15f * F("radius") * Mathf.Sqrt(n))), M('^', 90),
                             M('&', n == 0 ? 0 : c.Rnd(F("shootLean") * .3f, F("shootLean"))), M('C', 0, Lc_, 0)));
                     }
                     o.Add(M('O', n + 1, 0));
@@ -350,6 +351,9 @@ namespace Realms.Cacti
         }
 
         // ───────────────────────── breeding ─────────────────────────
+        /// <summary>Gaining an absent trait happens at this fraction of the normal mutation rate.</summary>
+        public const double GainRate = .15;
+
         static double Gauss(Rng R)
         {
             double u = 0, v = 0; while (u == 0) u = R.Next(); while (v == 0) v = R.Next();
@@ -392,12 +396,16 @@ namespace Realms.Cacti
                     g[i + k] = x + (y - x) * t2; origin[i + k] = origin[i];
                 }
             }
+            // An absent trait (gene at the bottom of its range, e.g. no flecks, no hair) can only be gained by a rare
+            // mutation (GainRate × the usual rate), and it starts faint. Otherwise absent traits pop up far too often.
             for (int i = 0; i < n; i++)
             {
-                if (R.Next() >= mutation) continue;
                 var s = Slots[i];
+                bool absent = !s.Color && (s.Type == GT.F || s.Type == GT.I) && s.Min == 0 && g[i] <= (s.Max - s.Min) * .01;
+                if (!(R.Next() < (absent ? mutation * GainRate : mutation))) continue;
                 if (s.Type == GT.B) g[i] = g[i] >= .5 ? 0 : 1;
                 else if (s.Type == GT.E) g[i] = Math.Floor(R.Next() * (s.Max + 1));
+                else if (absent) g[i] = Clamp(g[i] + Math.Abs(Gauss(R)) * (s.Max - s.Min) * .04, s.Min, s.Max);
                 else g[i] = Clamp(g[i] + Gauss(R) * (s.Max - s.Min) * .12, s.Min, s.Max);
                 origin[i] = origin[i] < 0 ? 2 : origin[i] + 10;
             }
