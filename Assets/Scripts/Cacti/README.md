@@ -7,7 +7,9 @@ Ten cactus species grown from parametric, stochastic, timed L-systems, meshed pr
 | `CactusLSystem.cs` | `Module`, `LContext`, deterministic `Rng` (mulberry32), `LSystem.Derive` |
 | `CactusSpecies.cs` | Style/flower types and `CactusLibrary`: the 10 species' axioms and productions |
 | `CactusBuilder.cs` | Turtle interpretation at a continuous time T → organs → one `Mesh` with 4 submeshes |
-| `CactusGrower.cs` | MonoBehaviour: pick a species, scrub `growth` 0→1 or tick `autoGrow` |
+| `CactusGenome.cs` | Genome (118 slots on 4 chromosomes), wild presets, `ToSpecies`, `Cross`, CG1 text codes |
+| `CactusGrower.cs` | MonoBehaviour: pick a species or paste a genome code, scrub `growth` 0→1 or tick `autoGrow` |
+| `CactusBreeder.cs` | Crosses two growers (or wild species) and lays out a litter of hybrids |
 | `CactusGarden.cs` | Spawns all ten in a grid (optionally normalised to one height) |
 | `CactusVertexColor.shader` | URP lit shader that uses vertex colours (body, spines, wool, petals) |
 
@@ -53,11 +55,52 @@ shader to *Project Settings → Graphics → Always Included Shaders*. `Shader.F
    Schlumbergera), lignify with age, and carry an areole lattice on both faces. Areoles carry wool tufts,
    radial and central spines, or hair.
 
+## Genomes and breeding
+
+Every plant can also be grown from a **genome**: the numbers inside one generic L-system. The genome has
+85 genes (118 slots, since colours take three) on four chromosomes:
+
+| Chromosome | Controls |
+|---|---|
+| Habit | Form (column / globe / pads), shoots, segments, arms, joints, pups, pads, tropism, pot |
+| Surface | Ribs, tubercles (Fibonacci pair), colour, tip, cork, trunk darkening, flecks, areole spacing |
+| Armature | Radial and central spines, colours, wool, hair |
+| Flower | Petal colours, size, count, rings, stamens, crown size and position, start time |
+
+`CactusGenome.Preset(kind)` returns each wild species' genome, tuned to grow like its hand-written
+L-system. `genome.ToSpecies()` builds a normal `CactusSpecies` whose productions read those numbers:
+
+| Form | Productions |
+|---|---|
+| Column | `O(n)` emits basal shoots; `C(j,L,d)` grows segments, arms and joints; `E(d)` adds the flower crown |
+| Globe | `H(g)` grows a ribbed or tubercled body plus pup generations, using delays `D` |
+| Pad | `S(g,l)` grows chains of pads with 1–3 children each |
+
+`CactusGenome.Cross(A, B, seed, mutation, blend)` breeds two genomes:
+
+1. **Crossover:** each chromosome takes a two-point crossover, so neighbouring (linked) genes are inherited together.
+2. **Blending:** continuous genes blend toward the other parent by up to `blend`.
+3. **Colours:** each colour comes whole from one parent.
+4. **Mutation:** each slot mutates with probability `mutation`. Numbers get Gaussian noise of 12% of their range,
+   booleans flip, and enums are redrawn.
+
+`origin[]` records where each slot came from: wild, parent A or B, or mutated. Form is a discrete gene, so a
+column × pad cross grows as one or the other while carrying the other's architecture genes silently. Those can
+resurface in later generations.
+
+Genomes serialise to a ~320-character **CG1 code**: 16 bits per slot, base64url. Codes made in the browser
+atlas paste straight into `CactusGrower.genomeCode`.
+
+**In the editor:** add `CactusBreeder` to an empty GameObject, assign two `CactusGrower` parents (or leave
+them empty and pick wild species), then use the component menu (⋮) → *Breed litter*. Each child is a
+`CactusGrower` carrying its code, so you can make it a parent next.
+
 ## Browser twin
 
 The Cactus L-System Atlas artifact runs the same engine in JavaScript, rule for rule and with the same RNG,
 so a given seed grows the same plant in both. Checked against the C#: identical module, organ, spine, wool
-and flower counts for all ten species.
+and flower counts for all ten species. Genome codes and the plants they grow also match bit for bit,
+across 30 first-generation and 6 second-generation crosses.
 
 ## Adding a species
 

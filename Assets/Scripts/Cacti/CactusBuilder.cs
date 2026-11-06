@@ -159,7 +159,7 @@ namespace Realms.Cacti
             public int V(Vector3 p, Color col) { v.Add(p); c.Add(col); return v.Count - 1; }
             public void T(int a, int b, int d) { i.Add(a); i.Add(b); i.Add(d); }
         }
-        sealed class Bufs { public readonly Buf body = new Buf(), spine = new Buf(), wool = new Buf(), flower = new Buf(); public bool draft; }
+        sealed class Bufs { public readonly Buf body = new Buf(), spine = new Buf(), wool = new Buf(), flower = new Buf(); public bool draft; public int areoles; }
 
         public sealed class BuildResult
         {
@@ -218,18 +218,23 @@ namespace Realms.Cacti
         // ── surface profile: ribs or tubercles ──
         static float Profile(CactusStyle sty, float th, float s, float r, float rRef, out float crest)
         {
+            // ribs and tubercles combine multiplicatively, so a hybrid can express both
+            float rr = r; crest = .5f;
+            if (sty.ribs > 0)
+            {
+                float c = .5f + .5f * Mathf.Cos(sty.ribs * (th - sty.twist * s));
+                crest = Mathf.Pow(c, sty.ribPow);
+                rr *= 1 - sty.ribDepth * (1 - crest);
+            }
             if (sty.tub != null)
             {
                 float u = s / (sty.tub.R > 0 ? sty.tub.R : rRef);
                 float c1 = .5f + .5f * Mathf.Cos(sty.tub.m * th - sty.tub.m * u), c2 = .5f + .5f * Mathf.Cos(sty.tub.n * th + sty.tub.n * u);
                 float q = Mathf.Pow(c1 * c2, sty.tub.pow);
-                crest = Mathf.Sqrt(q);
-                return r * (1 + sty.tub.amp * q);
+                rr *= 1 + sty.tub.amp * q;
+                crest = sty.ribs > 0 ? Mathf.Max(crest * .6f, Mathf.Sqrt(q)) : Mathf.Sqrt(q);
             }
-            if (sty.ribs == 0) { crest = .5f; return r; }
-            float c = .5f + .5f * Mathf.Cos(sty.ribs * (th - sty.twist * s));
-            crest = Mathf.Pow(c, sty.ribPow);
-            return r * (1 - sty.ribDepth * (1 - crest));
+            return rr;
         }
 
         static void AddSpine(Buf b, Vector3 basePos, Vector3 dir, float len, float w, Color c0, Color c1)
@@ -267,6 +272,7 @@ namespace Realms.Cacti
         {
             var sp = sty.spines;
             if (B.draft && (key & 1) != 0) return; // draft LOD: half the areoles
+            if (++B.areoles > 16000) { if (sty.wool != null && B.areoles < 40000) AddTuft(B.wool, p, nrm, sty.wool.size * (.5f + .5f * g), sty.wool.col); return; } // budget for extreme hybrids
             res.areoles++;
             if (sty.wool != null) AddTuft(B.wool, p, nrm, sty.wool.size * (.5f + .5f * g), sty.wool.col);
             if (sty.hair != null && g > .2f)
@@ -299,7 +305,9 @@ namespace Realms.Cacti
             if (stem.pts.Count < 2) return;
             float rEnd = stem.pts[stem.pts.Count - 1].r, rRef = sty.tub != null ? (sty.tub.R > 0 ? sty.tub.R : .05f) : rEnd;
             // ring spacing follows the finest surface detail: tubercle pitch, fleck size, or radius
+            float Lp = 0; for (int i = 1; i < stem.pts.Count; i++) Lp += (stem.pts[i].p - stem.pts[i - 1].p).magnitude;
             float ds = sty.tub != null ? Mathf.Clamp(rRef * .08f, .0015f, .02f) : sty.fleck > 0 ? .002f : stem.body ? Mathf.Clamp(rEnd * .2f, .0025f, .03f) : Mathf.Clamp(rEnd * .4f, .004f, .05f);
+            ds = Mathf.Max(ds, Lp / (stem.body ? 700 : 260), sty.tub != null || sty.fleck > 0 ? rEnd * .05f : 0); // ring budget per stem
 
             // dense Catmull-Rom centreline
             var C = new List<StemPoint>(); var P = stem.pts;
@@ -348,7 +356,7 @@ namespace Realms.Cacti
                 row.r = r; rows[i] = row;
             }
 
-            int Mr = sty.tub != null ? 96 : sty.fleck > 0 ? 160 : Mathf.Max(48, (sty.ribs > 0 ? sty.ribs : 6) * 6);
+            int Mr = sty.tub != null ? 96 : sty.fleck > 0 ? Mathf.Clamp(Mathf.RoundToInt(TAU * rEnd / .003f), 48, 160) : Mathf.Max(48, (sty.ribs > 0 ? sty.ribs : 6) * 6);
             var body = B.body; int baseIdx = body.v.Count; var col = sty.col;
             for (int i = 0; i < rows.Count; i++)
             {

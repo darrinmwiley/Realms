@@ -79,6 +79,7 @@ namespace Realms.Cacti
                     else next.Add(m);
                 }
                 str = next;
+                if (str.Count > 9000) break; // safety for runaway hybrids
             }
             return str;
         }

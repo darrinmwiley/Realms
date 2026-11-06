@@ -13,6 +13,8 @@ namespace Realms.Cacti
     public class CactusGrower : MonoBehaviour
     {
         public CactusKind species = CactusKind.Saguaro;
+        [Tooltip("Optional genome code (CG1.…) from the breeder or the browser atlas. When set, it overrides 'species'.")]
+        [TextArea(1, 4)] public string genomeCode;
         public int seed = 7;
         [Range(0, 1)] public float growth = 1f;
 
@@ -36,6 +38,31 @@ namespace Realms.Cacti
         public Material doubleSidedMaterial;
 
         public CactusBuilder.BuildResult LastBuild { get; private set; }
+
+        /// <summary>The genome this plant grows from: the decoded code if set, otherwise the wild preset of <see cref="species"/>.</summary>
+        public CactusGenome Genome
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(genomeCode))
+                {
+                    if (cachedCode == genomeCode && cachedGenome != null) return cachedGenome;
+                    try { cachedGenome = CactusGenome.Decode(genomeCode, gameObject.name); cachedCode = genomeCode; return cachedGenome; }
+                    catch (System.Exception e) { Debug.LogWarning($"CactusGrower: bad genome code ({e.Message}); using {species}."); }
+                }
+                return CactusGenome.Preset(species);
+            }
+            set { genomeCode = value.Encode(); cachedGenome = value; cachedCode = genomeCode; dirty = true; }
+        }
+        string cachedCode; CactusGenome cachedGenome;
+
+        CactusSpecies Spec()
+        {
+            if (string.IsNullOrWhiteSpace(genomeCode)) return CactusLibrary.Get(species);
+            if (cachedSpecCode != genomeCode) { cachedSpec = Genome.ToSpecies(); cachedSpecCode = genomeCode; }
+            return cachedSpec;
+        }
+        string cachedSpecCode; CactusSpecies cachedSpec;
 
         Mesh mesh;
         bool dirty = true;
@@ -66,7 +93,7 @@ namespace Realms.Cacti
         public void Rebuild()
         {
             dirty = false; lastRebuild = Time.time;
-            var spec = CactusLibrary.Get(species);
+            var spec = Spec();
             if (mesh == null) mesh = new Mesh { name = spec.Name };
             bool animating = autoGrow && Application.isPlaying && growth < 1f;
             LastBuild = CactusBuilder.Build(spec, seed, growth * spec.Steps, spines, draft || animating, mesh);
@@ -78,7 +105,7 @@ namespace Realms.Cacti
         }
 
         /// <summary>The derived L-system string, for inspection.</summary>
-        public string DescribeString(int max = 300) => LSystem.Format(LSystem.Derive(CactusLibrary.Get(species), seed), max);
+        public string DescribeString(int max = 300) => LSystem.Format(LSystem.Derive(Spec(), seed), max);
 
         static Material DefaultMaterial(bool doubleSided)
         {
