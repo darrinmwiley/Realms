@@ -19,8 +19,8 @@ namespace Realms.Cacti
 
         [Header("Breeding")]
         [Range(1, 12)] public int litterSize = 4;
-        [Range(0, 1)] public float mutation = .08f;
-        [Range(0, 1)] public float blend = .3f;
+        [Range(0, 1)] public float mutation = .03f;
+        [Range(0, 1)] public float blend = .5f;
         public int crossSeed = 1;
 
         [Header("Layout")]

@@ -76,20 +76,43 @@ L-system. `genome.ToSpecies()` builds a normal `CactusSpecies` whose productions
 | Globe | `H(g)` grows a ribbed or tubercled body plus pup generations, using delays `D` |
 | Pad | `S(g,l)` grows chains of pads with 1–3 children each |
 
-`CactusGenome.Cross(A, B, seed, mutation, blend)` breeds two genomes:
+`CactusGenome.Cross(A, B, seed, mutation = .03, blend = .5)` breeds two genomes so children look like a mix of
+their parents rather than a random mosaic:
 
-1. **Crossover:** each chromosome takes a two-point crossover, so neighbouring (linked) genes are inherited together.
-2. **Blending:** continuous genes blend toward the other parent by up to `blend`.
-3. **Colours:** each colour comes whole from one parent.
-4. **Mutation:** each slot mutates with probability `mutation`. Numbers get Gaussian noise of 12% of their range,
-   booleans flip, and enums are redrawn.
+1. **Body form:** the child takes its form (column / globe / pads) from one parent. The other parent is first
+   *expressed* in that form (`Express`), translating its height, radius and stem count. A barrel becomes a short
+   fat column, a saguaro a tall barrel, a prickly pear a column of pad-sized joints. That way it passes on
+   look-alike genes and not silent ones.
+2. **Trait blocks:** genes that only make sense together (a rib set, a spine set, a flower look, an arm plan) are
+   inherited whole from one parent (`Blocks`). The body plan (form, life cycle and the form's architecture
+   blocks) comes as one unit from the form donor.
+3. **Blending:** each block's numbers and colours then blend toward the other parent by up to `blend`.
+4. **Mutation:** each slot mutates with probability `mutation`. Numbers get Gaussian noise of 8% of their range,
+   booleans flip, and form never mutates.
    A trait that is absent (its gene at the bottom of its range, e.g. no white flecks or no hair) is only gained by
    a rare mutation (`GainRate` = 15% of the normal rate), and it starts faint. Without that, absent traits popped up in
    about 4% of offspring of parents that had neither.
 
-`origin[]` records where each slot came from: wild, parent A or B, or mutated. Form is a discrete gene, so a
-column × pad cross grows as one or the other while carrying the other's architecture genes silently. Those can
-resurface in later generations.
+`origin[]` records where each slot came from: wild, parent A or B, or mutated.
+
+### Audit loop
+
+The grammar was tuned by breeding every pair of wild species (135 children per round), then checking each
+child automatically. The checks cover stems or pads intersecting, organs sinking into the ground, flowers
+buried or floating, spines dwarfing the stem, missing flowers, and meshes too heavy. Each check also measures
+how far the child sits from each parent. Fixes that came out of it:
+
+- Stems are fitted to the remaining growth steps, so every plant finishes and flowers.
+- Branches fork below a crown instead of through it.
+- Flowers are sized against the spines and the organ they sit on.
+- Pups spread at even azimuths, at a clear distance. They are planted with `$`, a turtle command that levels the
+  heading to vertical and keeps "outward" as the new up vector.
+- Sibling pads splay symmetrically.
+- Crowns hold only as many flowers as fit around the apex.
+- A plant-wide triangle budget (450k for stem bodies) coarsens ring spacing on huge hybrids.
+
+Clean children went from 28% to about 70% (the rest are mostly light pad grazes). Children that look like
+neither parent went from 6% to 0, and about 97% sit between their parents.
 
 Genomes serialise to a ~320-character **CG1 code**: 16 bits per slot, base64url. Codes made in the browser
 atlas paste straight into `CactusGrower.genomeCode`.
@@ -103,7 +126,7 @@ them empty and pick wild species), then use the component menu (⋮) → *Breed 
 The Cactus L-System Atlas artifact runs the same engine in JavaScript, rule for rule and with the same RNG,
 so a given seed grows the same plant in both. Checked against the C#: identical module, organ, spine, wool
 and flower counts for all ten species. Genome codes and the plants they grow also match bit for bit,
-across 30 first-generation and 6 second-generation crosses.
+across 46 first- and second-generation crosses. Rounding uses JavaScript's half-up rule (`JsR`) on both sides.
 
 ## Adding a species
 

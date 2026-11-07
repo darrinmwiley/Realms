@@ -33,6 +33,8 @@ namespace Realms.Cacti
     {
         const float DEG = Mathf.Deg2Rad, TAU = Mathf.PI * 2f;
 
+        /// <summary>Round half up, like JavaScript's Math.round, so meshes match the previewer exactly.</summary>
+        static int JsR(float v) => (int)System.Math.Floor(v + .5f);
         static float SStep(float a, float b, float x) { float t = Mathf.Clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); }
         static Vector3 AnyPerp(Vector3 d) { var a = Mathf.Abs(d.y) < .9f ? Vector3.up : Vector3.right; return Vector3.Cross(d, a).normalized; }
         static Vector3 Rot(Vector3 v, Vector3 k, float ang)
@@ -123,10 +125,15 @@ namespace Realms.Cacti
                         if (g <= 0 || !(st.last is StemOrgan so)) break;
                         var a = so.pts[so.pts.Count - 2].p; var b = so.pts[so.pts.Count - 1].p; var dir = (b - a).normalized;
                         var sty = spec.Styles[so.style];
-                        float r = so.pts[so.pts.Count - 1].r * (sty.ribDepth != 0 ? 1 - sty.ribDepth * .3f : 1);
-                        float capL = so.body ? Mathf.Min((b - a).magnitude * .8f, r * 1.05f) : r * sty.cap;
+                        float rEnd = so.pts[so.pts.Count - 1].r, r = rEnd * (sty.ribDepth != 0 ? 1 - sty.ribDepth * .3f : 1);
+                        float Ltot = 0; for (int i = 1; i < so.pts.Count; i++) Ltot += (so.pts[i].p - so.pts[i - 1].p).magnitude;
+                        // same dome length the mesher uses, so the crown sits on the surface even on short stems
+                        float capL = so.body ? Mathf.Min(Ltot * .8f, rEnd * 1.05f) : Mathf.Min(Ltot * .9f, rEnd * sty.cap);
                         var e1 = AnyPerp(dir); var e2 = Vector3.Cross(dir, e1);
-                        int n = (int)m[0]; float lat = m[1] * DEG;
+                        float lat = m[1] * DEG, fsc = m.P.Length > 2 && m[2] != 0 ? m[2] : 1, ringLen = 0;
+                        foreach (var q in spec.Flower.rings) ringLen = Mathf.Max(ringLen, q.len);
+                        float foot = 2 * (spec.Flower.r0 + ringLen * .45f) * fsc;
+                        int n = Mathf.Min((int)m[0], Mathf.Max(1, Mathf.FloorToInt(TAU * r * Mathf.Sin(lat) / foot)));   // only as many as fit around the crown
                         for (int i = 0; i < n; i++)
                         {
                             float az = TAU * i / n + (float)L.Hash3(i, m.B, 7) * .6f;
@@ -145,6 +152,13 @@ namespace Realms.Cacti
                     case '\\': Turn(ref st.L, ref st.U, -m[0] * DEG); break;
                     case 'Y': st.style = (int)m[0]; st.fresh = true; break;
                     case 'Z': st.fresh = true; break;
+                    case '$': // level: heading straight up, U = the old heading's horizontal direction ("outward"), L = U × H
+                    {
+                        var h = new Vector3(st.H.x, 0, st.H.z); float hl = h.magnitude;
+                        var U = hl > .05f ? h / hl : new Vector3(st.U.x, 0, st.U.z).normalized;
+                        if (U.magnitude > .5f) { st.H = Vector3.up; st.U = U; st.L = Vector3.Cross(U, st.H); }
+                        break;
+                    }
                     case '[': stack.Push(st); st.parent = st.stem ?? st.parent; st.fresh = true; break;
                     case ']': st = stack.Pop(); break;
                 }
@@ -159,7 +173,7 @@ namespace Realms.Cacti
             public int V(Vector3 p, Color col) { v.Add(p); c.Add(col); return v.Count - 1; }
             public void T(int a, int b, int d) { i.Add(a); i.Add(b); i.Add(d); }
         }
-        sealed class Bufs { public readonly Buf body = new Buf(), spine = new Buf(), wool = new Buf(), flower = new Buf(); public bool draft; public int areoles; }
+        sealed class Bufs { public readonly Buf body = new Buf(), spine = new Buf(), wool = new Buf(), flower = new Buf(); public bool draft; public int areoles; public float dsScale = 1; }
 
         public sealed class BuildResult
         {
@@ -178,6 +192,8 @@ namespace Realms.Cacti
             var B = new Bufs { draft = draft };
             var res = new BuildResult { organs = org, modules = str.Count };
             BuildPot(B, spec);
+            // triangle budget for stem bodies: estimate, then coarsen ring spacing uniformly if a plant would exceed it
+            { float est = 0; foreach (var s in org.stems) est += StemCost(s, spec); if (est > 450000) B.dsScale = est / 450000; }
             foreach (var s in org.stems) BuildStem(B, s, spec, R, res);
             foreach (var p in org.pads) BuildPad(B, p, spec, R, res);
             foreach (var f in org.flowers) BuildFlower(B, f, spec.Flower, R);
@@ -272,7 +288,7 @@ namespace Realms.Cacti
         {
             var sp = sty.spines;
             if (B.draft && (key & 1) != 0) return; // draft LOD: half the areoles
-            if (++B.areoles > 16000) { if (sty.wool != null && B.areoles < 40000) AddTuft(B.wool, p, nrm, sty.wool.size * (.5f + .5f * g), sty.wool.col); return; } // budget for extreme hybrids
+            if (++B.areoles > 12000) { if (sty.wool != null && B.areoles < 30000) AddTuft(B.wool, p, nrm, sty.wool.size * (.5f + .5f * g), sty.wool.col); return; } // budget for extreme hybrids
             res.areoles++;
             if (sty.wool != null) AddTuft(B.wool, p, nrm, sty.wool.size * (.5f + .5f * g), sty.wool.col);
             if (sty.hair != null && g > .2f)
@@ -299,15 +315,31 @@ namespace Realms.Cacti
 
         struct Row { public float s, r0, r, g; public Vector3 c, t, n, b; }
 
+        static float StemLen(StemOrgan stem) { float Lp = 0; for (int i = 1; i < stem.pts.Count; i++) Lp += (stem.pts[i].p - stem.pts[i - 1].p).magnitude; return Lp; }
+        static float StemDs(StemOrgan stem, CactusStyle sty)
+        {
+            float rEnd = stem.pts[stem.pts.Count - 1].r, rRef = sty.tub != null ? (sty.tub.R > 0 ? sty.tub.R : .05f) : rEnd, Lp = StemLen(stem);
+            float ds = sty.tub != null ? Mathf.Clamp(rRef * .08f, .0015f, .02f) : sty.fleck > 0 ? .002f : stem.body ? Mathf.Clamp(rEnd * .2f, .0025f, .03f) : Mathf.Clamp(rEnd * .4f, .004f, .05f);
+            return Mathf.Max(ds, Lp / (stem.body ? 700 : 260), sty.tub != null || sty.fleck > 0 ? rEnd * .05f : 0); // ring budget per stem
+        }
+        static int StemRing(StemOrgan stem, CactusStyle sty)
+        {
+            float rEnd = stem.pts[stem.pts.Count - 1].r;
+            return sty.tub != null ? 96 : sty.fleck > 0 ? Mathf.Clamp(JsR(TAU * rEnd / .003f), 48, 160) : Mathf.Max(48, (sty.ribs > 0 ? sty.ribs : 6) * 6);
+        }
+        static float StemCost(StemOrgan stem, CactusSpecies spec)
+        {
+            var sty = spec.Styles[stem.style]; if (stem.pts.Count < 2) return 0;
+            return (StemLen(stem) / StemDs(stem, sty) * 1.25f + 12) * StemRing(stem, sty) * 2;
+        }
+
         static void BuildStem(Bufs B, StemOrgan stem, CactusSpecies spec, Rng R, BuildResult res)
         {
             var sty = spec.Styles[stem.style];
             if (stem.pts.Count < 2) return;
             float rEnd = stem.pts[stem.pts.Count - 1].r, rRef = sty.tub != null ? (sty.tub.R > 0 ? sty.tub.R : .05f) : rEnd;
             // ring spacing follows the finest surface detail: tubercle pitch, fleck size, or radius
-            float Lp = 0; for (int i = 1; i < stem.pts.Count; i++) Lp += (stem.pts[i].p - stem.pts[i - 1].p).magnitude;
-            float ds = sty.tub != null ? Mathf.Clamp(rRef * .08f, .0015f, .02f) : sty.fleck > 0 ? .002f : stem.body ? Mathf.Clamp(rEnd * .2f, .0025f, .03f) : Mathf.Clamp(rEnd * .4f, .004f, .05f);
-            ds = Mathf.Max(ds, Lp / (stem.body ? 700 : 260), sty.tub != null || sty.fleck > 0 ? rEnd * .05f : 0); // ring budget per stem
+            float ds = StemDs(stem, sty) * B.dsScale;
 
             // dense Catmull-Rom centreline
             var C = new List<StemPoint>(); var P = stem.pts;
@@ -356,7 +388,7 @@ namespace Realms.Cacti
                 row.r = r; rows[i] = row;
             }
 
-            int Mr = sty.tub != null ? 96 : sty.fleck > 0 ? Mathf.Clamp(Mathf.RoundToInt(TAU * rEnd / .003f), 48, 160) : Mathf.Max(48, (sty.ribs > 0 ? sty.ribs : 6) * 6);
+            int Mr = StemRing(stem, sty);
             var body = B.body; int baseIdx = body.v.Count; var col = sty.col;
             for (int i = 0; i < rows.Count; i++)
             {
@@ -416,7 +448,7 @@ namespace Realms.Cacti
             {
                 for (int j = 0; j < sty.ribs; j++)
                     for (float s = sp * (.6f + .5f * (j % 2)); s < Ltot; s += sp)
-                        Place(TAU * j / sty.ribs + sty.twist * s, s, j * 7919 + Mathf.RoundToInt(s * 1000));
+                        Place(TAU * j / sty.ribs + sty.twist * s, s, j * 7919 + JsR(s * 1000));
             }
         }
 
@@ -471,7 +503,7 @@ namespace Realms.Cacti
                     foreach (var side in new[] { 1, -1 })
                     {
                         float v = x / Mathf.Max(w, 1e-6f); var p = PosAt(u, v, side); var n = (pad.U * side + pad.L * (v * .35f)).normalized;
-                        Areole(B, sty, p, n, pad.H, pad.g, i * 131 + Mathf.RoundToInt(x * 1e4f) + (side > 0 ? 7 : 0), R, res);
+                        Areole(B, sty, p, n, pad.H, pad.g, i * 131 + JsR(x * 1e4f) + (side > 0 ? 7 : 0), R, res);
                     }
                 }
             }
@@ -519,7 +551,7 @@ namespace Realms.Cacti
             foreach (var q in prof)
                 for (int k = 0; k < n; k++)
                 {
-                    float a = TAU * k / n; float sh = .92f + .08f * (float)L.Hash3(k, Mathf.RoundToInt(q.y * 100), 2);
+                    float a = TAU * k / n; float sh = .92f + .08f * (float)L.Hash3(k, JsR(q.y * 100), 2);
                     body.V(new Vector3(q.x * Mathf.Cos(a), q.y, q.x * Mathf.Sin(a)), P.col * sh);
                 }
             for (int i = 0; i < prof.Length - 1; i++)

@@ -190,11 +190,16 @@ namespace Realms.Cacti
 
         // ───────────────────────── genome → species ─────────────────────────
         static Color Lc(Color a, Color b, float t) => Color.Lerp(a, b, t);
+        /// <summary>Round half up, like JavaScript's Math.round (Unity's RoundToInt rounds half to even), so seeds match the previewer.</summary>
+        static int JsR(float v) => (int)Math.Floor(v + .5);
+        double Fd(string n) { int i = SlotOf[n]; var s = Slots[i]; return Clamp(genes[i], s.Min, s.Max); }
+        /// <summary>Pot sized to the plant: a Christmas cactus gets the classic 12 cm pot, bigger-padded hybrids a bigger one.</summary>
+        static PotSpec PotFor(double padLen) { float r = (float)Clamp(padLen * 2.7, .12, .4); return new PotSpec { r = r, h = r * 1.17f, col = new Color(.72f, .4f, .26f) }; }
 
         /// <summary>One generic grammar whose numbers come from this genome.</summary>
         public CactusSpecies ToSpecies()
         {
-            var g = this; var form = FormGene; int steps = I("steps"); int fstep = Mathf.RoundToInt(F("fstart") * steps);
+            var g = this; var form = FormGene; int steps = I("steps"); int fstep = JsR(F("fstart") * steps);
             var col = C("col"); float td = F("trunkDark"); var pair = TubPairs[I("tubPair")];
             SpineSpec spines = I("nr") + I("nc") > 0 && (F("lr") > .001f || F("lc") > .001f)
                 ? new SpineSpec { nr = I("nr"), nc = I("nc"), lr = F("lr"), lc = F("lc"), ang = F("ang"), w = F("sw"), col = C("scol"), tip = C("stip"), cc = C("ccol"), ctip = C("stip"), vary = F("vary"), down = F("down") }
@@ -231,7 +236,12 @@ namespace Realms.Cacti
             var fc = C("fcol"); var fb = C("fbase");
             var rings = new List<PetalRing> { new PetalRing { n = I("fn"), off = 0, len = F("flen"), wid = F("fwid"), elev = F("felev"), curl = F("fcurl"), col = fc, baseCol = fb } };
             if (I("frings") > 1) rings.Add(new PetalRing { n = Mathf.Max(3, I("fn") - 1), off = .5f, len = F("flen") * .8f, wid = F("fwid") * .85f, elev = F("felev") * .62f, curl = F("fcurl") * .6f, col = Lc(fc, Color.white, .15f), baseCol = fb });
-            float fs = F("fscale");
+            // flowers grow out past the spines (up to 1.6×), but never dwarf the organ they sit on
+            double spineL = spines != null ? Math.Max(Fd("lr"), Fd("lc")) : 0;
+            double organR = form == Form.Column ? Fd("radius") * (I("maxArms") > 0 && Fd("armP") > .05 ? Fd("armR") : 1)
+                          : form == Form.Globe ? Fd("globeR") * Math.Pow(Fd("pupScale"), I("pupGen") > 0 && I("pups") > 0 ? 1 : 0)
+                          : Fd("padLen") * Fd("padRatio") * .5;
+            float fs = (float)Math.Min(Math.Max(Fd("fscale"), Math.Min(spineL * .9 / Math.Max(.001, Fd("flen")), Fd("fscale") * 1.6)), Math.Max(.35, organR * 2.6 / (Fd("fr0") + Fd("flen"))));
 
             var spec = new CactusSpecies
             {
@@ -239,14 +249,16 @@ namespace Realms.Cacti
                 Steps = steps, Dur = 1, Thicken = F("thicken"), R0 = F("r0"),
                 Flower = new FlowerSpec { r0 = F("fr0"), stamens = I("stamens"), stLen = F("stLen"), rings = rings.ToArray() },
                 Styles = form == Form.Pad ? new[] { padSty } : new[] { trunk, arm },
-                Pot = form == Form.Pad && B("pot") ? new PotSpec { r = .12f, h = .14f, col = new Color(.72f, .4f, .26f) } : null,
+                Pot = form == Form.Pad && B("pot") ? PotFor(Fd("padLen")) : null,
             };
-            spec.BaseY = spec.Pot != null ? .13f : 0;
+            spec.BaseY = spec.Pot != null ? spec.Pot.h - .01f : 0;
 
             if (form == Form.Column)
             {
                 int shoots = I("shoots"), delay = I("shootDelay"), main = I("mainSegs"), sMin = I("shootMin"), sMax = Mathf.Max(sMin, I("shootMax"));
                 float segLen = F("segLen"), rad = F("radius"); int maxArms = I("maxArms"), maxDepth = I("maxDepth"); bool jointed = B("jointed");
+                // segments a stem started at step k can still grow (one per step) and still flower; never cut a stem below 3
+                int Fit(int L, int k) => Math.Max(Math.Min(L, steps - k - 3), Math.Min(L, 3));
                 spec.Axiom = c => List(M('Y', 0), M('O', 0, 0));
                 spec.Rules['O'] = (m, c) =>
                 {
@@ -256,10 +268,10 @@ namespace Realms.Cacti
                     var o = new List<Module>();
                     if (n == 0 || c.R() < F("shootP"))
                     {
-                        float Lc_ = n == 0 ? main : Mathf.Floor(c.Rnd(sMin, sMax + 1));
+                        float Lc_ = Fit(n == 0 ? main : (int)Mathf.Floor(c.Rnd(sMin, sMax + 1)), c.K);
                         // basal shoots sit on a Vogel spiral (golden angle, distance ∝ √n) scaled by stem radius, so they never grow through each other
                         o.AddRange(Br(M('/', n * 137.5f + c.Rnd(-3, 3)), M('&', 90), M('f', n == 0 ? 0 : Mathf.Max(F("shootSpread") * (4 + n), 2.15f * F("radius") * Mathf.Sqrt(n))), M('^', 90),
-                            M('&', n == 0 ? 0 : c.Rnd(F("shootLean") * .3f, F("shootLean"))), M('C', 0, Lc_, 0)));
+                            M('&', n == 0 ? 0 : F("shootLean") * Mathf.Sqrt(n / (float)Math.Max(1, shoots - 1)) * c.Rnd(.85f, 1)), M('C', 0, Lc_, 0)));   // outer shoots lean more: the clump fans out
                     }
                     o.Add(M('O', n + 1, 0));
                     return o;
@@ -273,20 +285,30 @@ namespace Realms.Cacti
                         if ((d >= 1 || jointed) && d < maxDepth)
                         {
                             int n = 1 + (c.R() < F("jointBranchP") ? 1 : 0);
-                            for (int k = 0; k < n; k++) e.AddRange(Br(M('/', c.Rnd(0, 360)), M('&', c.Rnd(F("jointAng") * .55f, F("jointAng") * 1.4f)), M('C', 0, Mathf.Max(1, Mathf.RoundToInt(I("armSegs") * c.Rnd(.75f, 1.3f))), d + 1)));
+                            for (int k = 0; k < n; k++)
+                            {
+                                var br = new List<Module>();
+                                if (jointed) br.Add(M('f', -segLen * F("armLenR") * .3f));
+                                br.Add(M('/', c.Rnd(0, 360))); br.Add(M('&', c.Rnd(F("jointAng") * .55f, F("jointAng") * 1.4f)));
+                                br.Add(M('C', 0, Fit(Mathf.Max(1, JsR(I("armSegs") * c.Rnd(.75f, 1.3f))), c.K), d + 1));
+                                e.AddRange(Br(br.ToArray()));
+                            }
                         }
-                        e.Add(M('E', d));
+                        // a tip either forks or flowers (a crown under new branches would be buried); jointed plants fork from
+                        // just below the tip, out to the side, so their terminal crown stays clear
+                        if (e.Count == 0 || jointed) e.Add(M('E', d));
                         return e;
                     }
                     var o = new List<Module>();
                     if (jointed && d > 0) o.Add(M('Z'));
-                    o.Add(M('F', d == 0 ? segLen : segLen * F("armLenR"), d == 0 ? rad : rad * F("armR")));
+                    float segL = d == 0 ? segLen : (j == 0 && d == 1 && !jointed ? Mathf.Max(segLen * F("armLenR"), (rad + rad * F("armR")) * 1.3f) : segLen * F("armLenR"));   // first arm segment clears the trunk
+                    o.Add(M('F', segL, d == 0 ? rad : rad * F("armR")));
                     c.State.TryGetValue("arms", out int arms);
                     for (int w = 0; w < I("armWhorl"); w++)
                         if (d == 0 && arms < maxArms && j >= F("armStart") * Ln && j <= F("armEnd") * Ln && c.R() < F("armP"))
                         {
                             arms++; c.State["arms"] = arms;
-                            o.AddRange(Br(M('/', j * 137.5f + w * 160 + c.Rnd(-20, 20)), M('&', F("armPitch") + c.Rnd(-8, 8)), M('Y', 1), M('C', 0, Mathf.Max(1, Mathf.RoundToInt(I("armSegs") * c.Rnd(.75f, 1.3f))), 1)));
+                            o.AddRange(Br(M('/', j * 137.5f + w * 160 + c.Rnd(-20, 20)), M('&', F("armPitch") + c.Rnd(-8, 8)), M('Y', 1), M('C', 0, Fit(Mathf.Max(1, JsR(I("armSegs") * c.Rnd(.75f, 1.3f))), c.K), 1)));
                         }
                     o.Add(M('C', j + 1, Ln, d));
                     return o;
@@ -296,13 +318,13 @@ namespace Realms.Cacti
                     if (c.K < fstep) return null;
                     int d = (int)m[0];
                     if (jointed && d > 0) return c.R() < .35 ? List(M('W', 1, 0, fs * .9f)) : new List<Module>();
-                    return List(M('W', d == 0 ? I("crownN") : Mathf.Max(1, Mathf.RoundToInt(I("crownN") / 2f)), F("crownLat"), fs));
+                    return List(M('W', d == 0 ? I("crownN") : Mathf.Max(1, JsR(I("crownN") / 2f)), F("crownLat"), fs));
                 };
             }
             else if (form == Form.Globe)
             {
                 int pups = I("pups"), pupGen = I("pupGen"); float sc = F("pupScale");
-                int wait = Mathf.Max(2, Mathf.RoundToInt(steps * (1 - F("fstart"))));
+                int wait = Mathf.Max(2, JsR(steps * (1 - F("fstart"))));
                 spec.Axiom = c => List(M('Y', 0), M('H', 0));
                 spec.Rules['H'] = (m, c) =>
                 {
@@ -310,9 +332,16 @@ namespace Realms.Cacti
                     if (gg < pupGen && pups > 0)
                     {
                         int n = gg == 0 ? pups : Mathf.Max(1, pups - 2);
-                        for (int k = 0; k < n; k++) o.AddRange(Br(M('/', c.Rnd(0, 360)), M('&', 90), M('f', R0 * c.Rnd(F("pupDist") * .92f, F("pupDist") * 1.08f)), M('^', c.Rnd(66, 86)), M('D', Mathf.Floor(c.Rnd(1, I("pupDelay") + 1)), gg + 1)));
+                        // pups: evenly spread around the mother (first generation) or fanned outward away from the clump (later ones),
+                        // and far enough out that the pup's body clears the mother's ($ levels the turtle, keeping 'outward')
+                        float clear = (1 + sc) * 1.08f;
+                        for (int k = 0; k < n; k++)
+                        {
+                            float az = gg == 0 ? k * 360f / n + c.Rnd(-15, 15) : c.Rnd(-65, 65);
+                            o.AddRange(Br(M('$'), M('/', az), M('&', 90), M('f', R0 * Mathf.Max(c.Rnd(F("pupDist") * .92f, F("pupDist") * 1.08f), clear)), M('^', c.Rnd(70, 86)), M('D', Mathf.Floor(c.Rnd(1, I("pupDelay") + 1)), gg + 1)));
+                        }
                     }
-                    o.Add(M('G', R0, F("globeH") * s, Mathf.Max(2, Mathf.RoundToInt(I("globeDur") * (gg > 0 ? .5f : 1f))))); o.Add(M('V', 0));
+                    o.Add(M('G', R0, F("globeH") * s, Mathf.Max(2, JsR(I("globeDur") * (gg > 0 ? .5f : 1f))))); o.Add(M('V', 0));
                     return o;
                 };
                 spec.Rules['D'] = (m, c) => m[0] > 0 ? List(M('D', m[0] - 1, m[1])) : List(M('H', m[1]));
@@ -341,7 +370,8 @@ namespace Realms.Cacti
                     int n = 1 + (c.R() < F("kidP1") ? 1 : 0) + (c.R() < F("kidP2") ? 1 : 0); float A = F("padAng");
                     for (int k = 0; k < n; k++)
                     {
-                        float ang = n == 1 ? c.Rnd(-A * .25f, A * .25f) : (k == 0 ? c.Rnd(-A * .4f, A * .4f) : (k == 1 ? 1 : -1) * c.Rnd(A * .6f, A));
+                        // siblings fan out with a guaranteed gap: two split to opposite sides, three take left / centre / right
+                        float ang = n == 1 ? c.Rnd(-A * .25f, A * .25f) : n == 2 ? (k == 0 ? -1 : 1) * c.Rnd(A * .55f, A) : (k == 0 ? c.Rnd(-A * .12f, A * .12f) : (k == 1 ? 1 : -1) * c.Rnd(A * .75f, A));
                         o.AddRange(Br(M('f', -l * F("padBack")), M('+', ang), M('/', c.Rnd(-F("padRoll"), F("padRoll"))), M('S', gg + 1, l * c.Rnd(.82f, 1.06f))));
                     }
                     return o;
@@ -360,53 +390,110 @@ namespace Realms.Cacti
             return Math.Sqrt(-2 * Math.Log(u)) * Math.Cos(2 * Math.PI * v);
         }
 
+        /// <summary>Trait blocks: genes that only make sense together are inherited as a unit (a rib set, a spine set, a flower look).</summary>
+        public static readonly string[][] Blocks =
+        {
+            new[] { "form" }, new[] { "steps", "thicken", "r0", "trop", "fstart" },
+            new[] { "shoots", "shootDelay", "shootP", "shootLean", "shootSpread" }, new[] { "mainSegs", "shootMin", "shootMax", "segLen", "radius" },
+            new[] { "armP", "armWhorl", "armStart", "armEnd", "maxArms", "armPitch", "armSegs", "armLenR", "armR", "armTrop", "neck" },
+            new[] { "jointed", "maxDepth", "jointBranchP", "jointAng" },
+            new[] { "globeR", "globeH", "globeDur" }, new[] { "pups", "pupGen", "pupScale", "pupDelay", "pupDist" },
+            new[] { "padLen", "padRatio", "padThick", "kidP1", "kidP2", "padAng", "padRoll", "padGen", "padBack", "lignify", "teeth" },
+            new[] { "baseStems", "basePitch", "pot" },
+            new[] { "ribs", "ribDepth", "ribPow", "twist" }, new[] { "tubAmp", "tubPair", "tubPow", "tubR" },
+            new[] { "col", "tip", "tipAmt", "cork", "corkAmt", "corkH", "trunkDark", "fleck" }, new[] { "areole", "cap" },
+            new[] { "nr", "nc", "lr", "lc", "ang", "sw", "scol", "stip", "ccol", "vary", "down" }, new[] { "woolSize", "woolCol", "hairN", "hairLen" },
+            new[] { "fcol", "fbase" }, new[] { "flen", "fwid", "fn", "felev", "fcurl", "frings", "stamens", "stLen", "fr0", "fscale" }, new[] { "crownN", "crownLat" },
+        };
+        /// <summary>Which blocks build each form's architecture.</summary>
+        static readonly int[][] FormBlocks = { new[] { 2, 3, 4, 5 }, new[] { 6, 7 }, new[] { 8, 9 } };
+
         /// <summary>
-        /// Breed two genomes. For each chromosome a two-point crossover picks which parent each gene comes from
-        /// (linked genes travel together); continuous genes then blend toward the other parent by up to <paramref name="blend"/>;
-        /// colour genes stay whole; each slot mutates with probability <paramref name="mutation"/> (N(0, 12% of range), flips for bools, redraws for enums).
+        /// Express a genome in another body form, so a parent of a different form still passes on look-alike genes:
+        /// a barrel becomes a short fat column, a saguaro a tall barrel, a prickly pear a column of jointed pad-sized segments.
         /// </summary>
-        public static CactusGenome Cross(CactusGenome A, CactusGenome Bg, int seed, float mutation = .08f, float blend = .3f)
+        public CactusGenome Express(Form toForm)
+        {
+            var from = FormGene;
+            if (from == toForm) return this;
+            var g = (double[])genes.Clone();
+            void Set(string n, double v) { int i = SlotOf[n]; g[i] = Clamp(v, Slots[i].Min, Slots[i].Max); }
+            double H, R; int n;   // common currency: height, radius, number of stems
+            if (from == Form.Column) { R = Fd("radius"); H = Fd("segLen") * I("mainSegs"); n = I("shoots") + (int)JsRound(I("maxArms") * Fd("armP")); }
+            else if (from == Form.Globe) { R = Fd("globeR"); H = Fd("globeH"); n = 1 + I("pups"); }
+            else { R = Math.Max(.02, Fd("padLen") * Fd("padRatio") * .4); H = Math.Max(.06, Fd("padLen") * Math.Min(I("padGen"), 4) * .8); n = I("baseStems") + (int)JsRound(I("padGen") * Fd("kidP1")); }
+            if (toForm == Form.Column)
+            {
+                double segs = Clamp(JsRound(H / Math.Max(R * .7, .03)), 2, 18);
+                Set("radius", R * .9); Set("mainSegs", segs); Set("segLen", H / segs); Set("shoots", Clamp(from == Form.Pad ? I("baseStems") : n, 1, 14));
+                Set("shootMin", Math.Max(1, JsRound(segs * .5))); Set("shootMax", segs); Set("shootLean", from == Form.Globe ? 25 : 30); Set("shootSpread", 0); Set("shootDelay", 1); Set("shootP", .8);
+                if (from == Form.Pad)
+                {
+                    Set("jointed", 1); Set("maxDepth", 3); Set("jointBranchP", Fd("kidP2") + .3); Set("jointAng", Fd("padAng"));
+                    Set("armP", Fd("kidP1")); Set("maxArms", Clamp(JsRound(I("padGen") * Fd("kidP1") * 1.5), 1, 8)); Set("armWhorl", 1); Set("armPitch", Fd("padAng") + 15);
+                    Set("armSegs", 1); Set("armLenR", .9); Set("armR", .8); Set("neck", .5); Set("armStart", .2); Set("armEnd", 1);
+                }
+                else { Set("armP", 0); Set("maxArms", 0); Set("jointed", 0); }
+            }
+            else if (toForm == Form.Globe)
+            {
+                Set("globeR", R * 1.05); Set("globeH", Math.Min(H, R * 3)); Set("globeDur", Clamp(JsRound(I("steps") * .7), 2, 12));
+                Set("pups", Clamp(n - 1, 0, 6)); Set("pupGen", n > 1 ? 1 : 0); Set("pupScale", .6); Set("pupDelay", 3); Set("pupDist", 1.6);
+            }
+            else
+            {
+                double L = Clamp(Math.Max(H / 3, R * 2.4), .03, .35);
+                Set("padLen", L); Set("padRatio", Clamp(R * 2.4 / L, .4, 1)); Set("padThick", R * .3); Set("padGen", Clamp(JsRound(H / L) + 1, 2, 8));
+                Set("kidP1", from == Form.Column ? Clamp(Fd("armP") + (I("shoots") > 1 ? .3 : 0), .2, .9) : .4); Set("kidP2", .1); Set("padAng", 35); Set("padRoll", 25); Set("padBack", .08);
+                Set("lignify", 0); Set("teeth", 0); Set("baseStems", Clamp(n, 1, 5)); Set("basePitch", n > 1 ? 30 : 0); Set("pot", 0);
+            }
+            return new CactusGenome { name = name, genes = g, origin = origin, parents = parents };
+        }
+
+        /// <summary>
+        /// Breed two genomes.
+        /// 1. The child's body form comes from one parent; both parents are expressed in that form (see <see cref="Express"/>).
+        /// 2. The body plan (form, life span, architecture) comes from that parent as one unit; every other trait block
+        ///    (ribs, tubercles, skin, spines, wool, flower colour, flower shape, crown) comes whole from either parent.
+        ///    Numbers and colours in each block then blend toward the other parent by up to <paramref name="blend"/>,
+        ///    so children land between their parents rather than as a random mosaic.
+        /// 3. A few genes mutate (N(0, 8% of range)); an absent trait is only gained rarely (<see cref="GainRate"/>), and faintly.
+        /// </summary>
+        public static CactusGenome Cross(CactusGenome A, CactusGenome Bg, int seed, float mutation = .03f, float blend = .5f)
             => Cross(A, Bg, seed, D(mutation), D(blend));
 
         public static CactusGenome Cross(CactusGenome A, CactusGenome Bg, int seed, double mutation, double blend)
         {
             var R = new Rng(seed); int n = Slots.Length; var g = new double[n]; var origin = new float[n];
-            for (int chr = 0; chr < Chromosomes.Length; chr++)
+            bool formFromB = R.Next() < .5; var childForm = (formFromB ? Bg : A).FormGene;
+            var Ax = A.Express(childForm); var Bx = Bg.Express(childForm); var arch = new HashSet<int>(FormBlocks[(int)childForm]);
+            double planT = blend * (.25 + .75 * R.Next());   // the body plan always takes something from the other parent
+            for (int bi = 0; bi < Blocks.Length; bi++)
             {
-                var idx = new List<int>(); for (int i = 0; i < n; i++) if (Slots[i].Chr == chr) idx.Add(i);
-                int a = (int)Math.Floor(R.Next() * (idx.Count + 1)), b = (int)Math.Floor(R.Next() * (idx.Count + 1)); if (a > b) { var t = a; a = b; b = t; }
-                bool first = R.Next() < .5;
-                for (int k = 0; k < idx.Count; k++)
+                bool plan = bi <= 1 || arch.Contains(bi); double r1 = R.Next(), r2 = R.Next();
+                bool fromB = plan ? formFromB : r1 < .5; double t = bi == 0 ? 0 : (plan ? planT : r2 * blend);
+                var s0 = arch.Contains(bi) ? Ax : A; var s1 = arch.Contains(bi) ? Bx : Bg;
+                foreach (var nm in Blocks[bi])
                 {
-                    int i = idx[k]; var s = Slots[i]; bool fromB = (k >= a && k < b) ? !first : first;
-                    double x = fromB ? Bg.genes[i] : A.genes[i], y = fromB ? A.genes[i] : Bg.genes[i];
-                    bool cont = s.Type == GT.F || s.Type == GT.I; double t = cont ? R.Next() * blend : 0;
-                    g[i] = x + (y - x) * t;
-                    origin[i] = (float)(fromB ? 1 - t : t);
+                    int i0 = SlotOf[nm], w = TypeOf[nm] == GT.C ? 3 : 1;
+                    for (int i = i0; i < i0 + w; i++)
+                    {
+                        var s = Slots[i]; double x = (fromB ? s1 : s0).genes[i], y = (fromB ? s0 : s1).genes[i];
+                        bool cont = s.Type == GT.F || s.Type == GT.I;
+                        g[i] = cont ? x + (y - x) * t : x;
+                        origin[i] = (float)(cont ? (fromB ? 1 - t : t) : (fromB ? 1 : 0));   // 0 = all A, 1 = all B
+                    }
                 }
             }
-            foreach (var gene in Genes)
-            {
-                if (gene.Type != GT.C) continue;
-                int i = SlotOf[gene.Name];
-                for (int k = 1; k < 3; k++)
-                {
-                    bool fromB = origin[i] > .5f; double t2 = Math.Abs((double)origin[i] - (fromB ? 1 : 0));
-                    double x = fromB ? Bg.genes[i + k] : A.genes[i + k], y = fromB ? A.genes[i + k] : Bg.genes[i + k];
-                    g[i + k] = x + (y - x) * t2; origin[i + k] = origin[i];
-                }
-            }
-            // An absent trait (gene at the bottom of its range, e.g. no flecks, no hair) can only be gained by a rare
-            // mutation (GainRate × the usual rate), and it starts faint. Otherwise absent traits pop up far too often.
             for (int i = 0; i < n; i++)
             {
                 var s = Slots[i];
                 bool absent = !s.Color && (s.Type == GT.F || s.Type == GT.I) && s.Min == 0 && g[i] <= (s.Max - s.Min) * .01;
                 if (!(R.Next() < (absent ? mutation * GainRate : mutation))) continue;
                 if (s.Type == GT.B) g[i] = g[i] >= .5 ? 0 : 1;
-                else if (s.Type == GT.E) g[i] = Math.Floor(R.Next() * (s.Max + 1));
+                else if (s.Type == GT.E) { if (s.Gene == "form") continue; g[i] = Math.Floor(R.Next() * (s.Max + 1)); }
                 else if (absent) g[i] = Clamp(g[i] + Math.Abs(Gauss(R)) * (s.Max - s.Min) * .04, s.Min, s.Max);
-                else g[i] = Clamp(g[i] + Gauss(R) * (s.Max - s.Min) * .12, s.Min, s.Max);
+                else g[i] = Clamp(g[i] + Gauss(R) * (s.Max - s.Min) * .08, s.Min, s.Max);
                 origin[i] = origin[i] < 0 ? 2 : origin[i] + 10;
             }
             return new CactusGenome { name = Short(A.name) + " × " + Short(Bg.name), genes = g, origin = origin, parents = new[] { A.name, Bg.name } };
