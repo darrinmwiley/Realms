@@ -140,7 +140,9 @@ namespace Realms.Cacti
                             var rad = e1 * Mathf.Cos(az) + e2 * Mathf.Sin(az);
                             var pos = b + dir * (-capL + capL * Mathf.Cos(lat)) + rad * (r * Mathf.Sin(lat) * .97f);
                             var fd = (dir * Mathf.Cos(lat * .75f) + rad * Mathf.Sin(lat * .75f)).normalized;
-                            o.flowers.Add(new FlowerOrgan { pos = pos, dir = fd, g = SStep(0, 1, T - (m.B + (float)L.Hash3(i, m.B, 3) * .5f)), scale = m.P.Length > 2 && m[2] != 0 ? m[2] : 1 });
+                            // on tubercled bodies the flower rises from the axils, clear of the tubercle tips
+                            float lift = sty.tub != null ? r * sty.tub.amp * .6f : 0;
+                            o.flowers.Add(new FlowerOrgan { pos = pos + fd * lift, dir = fd, g = SStep(0, 1, T - (m.B + (float)L.Hash3(i, m.B, 3) * .5f)), scale = m.P.Length > 2 && m[2] != 0 ? m[2] : 1 });
                         }
                         break;
                     }
@@ -509,36 +511,78 @@ namespace Realms.Cacti
             }
         }
 
+        /// <summary>A floral tube carrying rings of cupped, slightly twisted tepals (outermost first; inner rings start higher,
+        /// closer to the axis and open less, so rings never cut through each other), a throat disc, thin stamens with
+        /// anthers, and a central style with stigma lobes.</summary>
         static void BuildFlower(Bufs B, FlowerOrgan f, FlowerSpec s, Rng R)
         {
             float g = f.g, sc = f.scale * (.45f + .55f * g);
-            var d = f.dir.normalized; var e1 = AnyPerp(d); var e2 = Vector3.Cross(d, e1); var fb = B.flower;
-            foreach (var ring in s.rings)
+            var d = f.dir.normalized; var e1 = AnyPerp(d); var e2 = Vector3.Cross(d, e1); var F = B.flower; float r0 = s.r0 * sc;
+            var rings = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.OrderByDescending(s.rings, x => x.elev));
+            var top = rings[0]; Color baseCol = top.baseCol ?? top.col, green = new Color(.45f, .6f, .3f); float tubeH = r0 * .9f;
+            // floral tube
+            const int NS = 12; int t0 = F.v.Count;
+            for (int j = 0; j <= 3; j++)
             {
+                float u = j / 3f, rr = r0 * Mathf.Lerp(.55f, 1, Mathf.Sqrt(u)); var c = Color.Lerp(green, baseCol, u * u);
+                var ctr = f.pos + d * Mathf.Lerp(-r0 * .4f, tubeH, u);
+                for (int k = 0; k < NS; k++) { float az = TAU * k / NS; F.V(ctr + e1 * (Mathf.Cos(az) * rr) + e2 * (Mathf.Sin(az) * rr), c); }
+            }
+            for (int j = 0; j < 3; j++) for (int k = 0; k < NS; k++) { int a = t0 + j * NS + k, b = t0 + j * NS + (k + 1) % NS; F.T(a, b, a + NS); F.T(b, b + NS, a + NS); }
+            // throat disc
+            var throat = f.pos + d * (tubeH * .85f); var dc = baseCol * .8f; dc.a = 1; int ci = F.V(throat, dc), r1 = F.v.Count;
+            for (int k = 0; k < NS; k++) { float az = TAU * k / NS; F.V(throat + d * (tubeH * .1f) + e1 * (Mathf.Cos(az) * r0 * .98f) + e2 * (Mathf.Sin(az) * r0 * .98f), dc); }
+            for (int k = 0; k < NS; k++) F.T(ci, r1 + k, r1 + (k + 1) % NS);
+            // tepals
+            float prevE = 1e9f, prevT = 1e9f;
+            for (int ri = 0; ri < rings.Length; ri++)
+            {
+                var ring = rings[ri];
+                float E = Mathf.Min(ring.elev, prevE - 6), C = Mathf.Max(0, Mathf.Min(E + ring.curl, prevT - 4) - E);
+                prevE = E; prevT = E + C;
+                float rb = r0 * (1 - .16f * ri), hb = tubeH + r0 * .14f * ri, twist = (10 + 4 * ri) * DEG; const int segs = 7, across = 5;
                 for (int k = 0; k < ring.n; k++)
                 {
-                    float az = TAU * (k + ring.off) / ring.n + ((float)R.Next() - .5f) * .15f;
-                    var rad = e1 * Mathf.Cos(az) + e2 * Mathf.Sin(az); var tan = Vector3.Cross(d, rad);
-                    float elev = Mathf.Lerp(4, ring.elev, g) * DEG; int baseIdx = fb.v.Count; const int segs = 6;
-                    var q = f.pos + rad * (s.r0 * sc);
+                    float az = TAU * (k + ring.off) / ring.n + ((float)R.Next() - .5f) * .12f;
+                    var rad = e1 * Mathf.Cos(az) + e2 * Mathf.Sin(az);
+                    float elev = Mathf.Lerp(3 + ri, E, g) * DEG + (k % 2 != 0 ? .03f : -.03f) * g; int baseIdx = F.v.Count;
+                    var q = f.pos + d * hb + rad * rb;
                     for (int i = 0; i <= segs; i++)
                     {
-                        float u = (float)i / segs, a = elev + ring.curl * DEG * u * u * g;
+                        float u = (float)i / segs, a = elev + C * DEG * u * u * g;
                         var dir = d * Mathf.Cos(a) + rad * Mathf.Sin(a);
                         if (i > 0) q += dir * (ring.len * sc / segs);
-                        float w = ring.wid * sc * Mathf.Pow(Mathf.Max(0, Mathf.Sin(Mathf.PI * Mathf.Clamp01(u * .92f + .04f))), .7f);
-                        var c = Color.Lerp(ring.baseCol ?? ring.col, ring.col, SStep(0, .5f, u));
-                        fb.V(q + tan * (w * .5f), c); fb.V(q - tan * (w * .5f), c);
+                        var tan0 = Vector3.Cross(d, rad); var up0 = Vector3.Cross(dir, tan0).normalized;
+                        var tan = tan0 * Mathf.Cos(twist) + up0 * Mathf.Sin(twist); var up = Vector3.Cross(dir, tan).normalized;
+                        float w = ring.wid * sc * (.28f + .72f * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Min(1, u * .82f + .1f)), .8f));
+                        float cup = w * .22f * (.4f + .6f * g);
+                        for (int j = 0; j < across; j++)
+                        {
+                            float v = -1 + 2f * j / (across - 1), mid = 1 - .07f * (1 - Mathf.Abs(v)) * SStep(.15f, .6f, u);
+                            var c = Color.Lerp(ring.baseCol ?? ring.col, ring.col, SStep(0, .5f, u)) * mid; c.a = 1;
+                            F.V(q + tan * (v * w * .5f) + up * (cup * v * v), c);
+                        }
                     }
-                    for (int i = 0; i < segs; i++) { int a = baseIdx + 2 * i; fb.T(a, a + 1, a + 2); fb.T(a + 1, a + 3, a + 2); }
+                    for (int i = 0; i < segs; i++) for (int j = 0; j < across - 1; j++) { int a = baseIdx + i * across + j, b = a + across; F.T(a, b, a + 1); F.T(a + 1, b, b + 1); }
                 }
             }
+            // stamens and anthers
+            float sl = s.stLen * sc;
             for (int k = 0; k < s.stamens; k++)
             {
-                float az = (float)R.Next() * TAU, rr = s.r0 * sc * (.2f + .8f * (float)R.Next());
+                float az = (float)R.Next() * TAU, rr = r0 * (.3f + .55f * Mathf.Sqrt((float)R.Next()));
                 var rad = e1 * Mathf.Cos(az) + e2 * Mathf.Sin(az);
-                var p = f.pos + rad * rr; var dir = (d + rad * (.35f + .3f * (float)R.Next())).normalized;
-                AddSpine(fb, p, dir, s.stLen * sc * (.7f + .5f * (float)R.Next()), .0006f * sc * 30, s.stCol, s.antCol);
+                var p = throat + d * (tubeH * .1f) + rad * rr; var dir = (d + rad * (.2f + .5f * rr / r0)).normalized; float len = sl * (.75f + .4f * (float)R.Next());
+                AddSpine(F, p, dir, len, Mathf.Max(.00018f, sl * .025f), s.stCol, s.stCol);
+                AddTuft(F, p + dir * len, dir, Mathf.Max(.0005f, sl * .09f), s.antCol);
+            }
+            // style and stigma lobes
+            if (s.stamens > 0)
+            {
+                var sb = throat + d * (tubeH * .1f); float sL = sl * 1.12f; var stig = s.stigCol; var stTop = sb + d * sL;
+                AddSpine(F, sb, d, sL, Mathf.Max(.0003f, sl * .045f), stig, stig);
+                const int nl = 6;
+                for (int k = 0; k < nl; k++) { float az = TAU * k / nl; var rad = e1 * Mathf.Cos(az) + e2 * Mathf.Sin(az); AddSpine(F, stTop, (d + rad * 1.4f).normalized, sl * .16f, Mathf.Max(.0003f, sl * .05f), stig, stig); }
             }
         }
 

@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Realms.Cacti
 {
-    /// <summary>Spawns all ten species in a grid, each with its own <see cref="CactusGrower"/>. Handy for comparing them.</summary>
+    /// <summary>Spawns all thirty species in a grid, each with its own <see cref="CactusGrower"/>. Handy for comparing them.</summary>
     public class CactusGarden : MonoBehaviour
     {
         public int seed = 7;
@@ -12,7 +12,7 @@ namespace Realms.Cacti
         [Tooltip("Scale every species to this height so they can be compared side by side. 0 = true scale.")]
         public float normaliseHeight = 1.5f;
         public float spacing = 2.5f;
-        public int columns = 5;
+        public int columns = 6;
         public bool draft = true;
         public Material bodyMaterial, doubleSidedMaterial;
 

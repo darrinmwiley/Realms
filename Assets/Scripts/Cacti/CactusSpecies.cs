@@ -7,7 +7,12 @@ namespace Realms.Cacti
     public enum CactusKind
     {
         Saguaro, GoldenBarrel, PricklyPear, TeddyBearCholla, OrganPipe,
-        Pincushion, BishopsCap, ChristmasCactus, OldMan, Hedgehog
+        Pincushion, BishopsCap, ChristmasCactus, OldMan, Hedgehog,
+        // grown from genome presets only (see CactusGenome.Preset)
+        FishhookBarrel, SanPedro, Cardon,
+        Peyote, SilverTorch, Espostoa, BlueCandle, ChinCactus, Rebutia, BalloonCactus,
+        BunnyEars, SantaRita, CaneCholla, DragonFruit,
+        QueenOfTheNight, RatTail, SandDollar, EasterLily, Ladyfinger, OldLady
     }
 
     public sealed class SpineSpec
@@ -55,7 +60,7 @@ namespace Realms.Cacti
     public sealed class FlowerSpec
     {
         public float r0 = .006f; public int stamens = 30; public float stLen = .012f;
-        public Color stCol = new Color(.98f, .93f, .7f), antCol = new Color(.98f, .82f, .25f);
+        public Color stCol = new Color(.98f, .93f, .7f), antCol = new Color(.98f, .82f, .25f), stigCol = new Color(.95f, .93f, .78f);
         public PetalRing[] rings;
     }
     public sealed class PotSpec { public float r, h; public Color col; }
@@ -75,7 +80,7 @@ namespace Realms.Cacti
     }
 
     /// <summary>
-    /// Ten cacti as parametric, stochastic L-systems (lengths in metres, angles in degrees; one step ≈ one season).
+    /// Thirty cacti: ten as hand-written parametric, stochastic L-systems (below), twenty grown from genome presets. Lengths in metres, angles in degrees; one step ≈ one season.
     /// Kept rule-for-rule identical to the browser previewer so seeds match.
     /// Turtle symbols: F(len,r) stem segment · f(len) move · G(R,H,steps) ribbed body · P(len,wid,thick,gen) pad ·
     /// K(scale) flower · W(n,lat,scale) crown of flowers around the last apex · + − yaw · &amp; ^ pitch · / \ roll ·
@@ -89,6 +94,30 @@ namespace Realms.Cacti
             new PetalRing { n = n, off = off, len = len, wid = wid, elev = elev, curl = curl, col = col, baseCol = b };
 
         static Dictionary<CactusKind, CactusSpecies> cache;
+
+        static readonly Dictionary<CactusKind, (string id, string latin, string blurb, string[] facts)> MoreInfo = new Dictionary<CactusKind, (string, string, string, string[])>
+        {
+            [CactusKind.FishhookBarrel] = ("fishhook", "Ferocactus wislizenii", "A tall, leaning barrel with deep ribs. Each areole carries pale bristly radials and a stout red central spine hooked at the tip.", new[] { "20–28 ribs, up to 2 m tall", "Hooked red central spines, pale radials", "Orange-red flowers in a ring at the crown" }),
+            [CactusKind.SanPedro] = ("sanpedro", "Echinopsis pachanoi", "A fast Andean column that branches from the base into a clump of blue-green, round-ribbed stems with short spines, and opens huge, scented white flowers at night.", new[] { "6–8 broad, rounded ribs", "Few short dark spines", "Night flowers up to 20 cm" }),
+            [CactusKind.Cardon] = ("cardon", "Pachycereus pringlei", "The tallest cactus on Earth: a massive grey-green trunk that branches low into thick, upswept arms.", new[] { "Up to 19 m, trunk to 1 m thick", "11–17 ribs, short dark spines", "White flowers near the arm tips in spring" }),
+            [CactusKind.Peyote] = ("peyote", "Lophophora williamsii", "A soft, spineless blue-green button that barely rises above the soil, with tufts of wool where spines would be and a small pink flower at the centre.", new[] { "5–13 low, rounded ribs", "No spines; woolly tufts", "Pale pink flower from the woolly crown" }),
+            [CactusKind.SilverTorch] = ("silvertorch", "Cleistocactus strausii", "Slender columns rising from the base, so densely covered in fine white bristles they look frosted. Red tubular flowers poke out sideways and barely open.", new[] { "About 25 low ribs", "30–40 white bristle spines per areole", "Tubular red flowers, hummingbird-pollinated" }),
+            [CactusKind.Espostoa] = ("espostoa", "Espostoa lanata", "A branching column wrapped in a shawl of white silky hair, with short sharp spines hidden beneath it.", new[] { "20–30 low ribs", "Dense white hair hides yellow spines", "Small white flowers from a woolly side cephalium" }),
+            [CactusKind.BlueCandle] = ("bluecandle", "Myrtillocactus geometrizans", "A candelabra of chalky blue, few-ribbed stems branching freely from a short trunk. Small cream flowers become edible blue berries.", new[] { "5–6 rounded ribs", "Short dark spines", "Small cream flowers along the upper stems" }),
+            [CactusKind.ChinCactus] = ("chin", "Gymnocalycium baldianum", "A small, flattened grey-green globe whose ribs are broken into chin-like bumps below each areole. Wine-red flowers open from near the top.", new[] { "9–11 ribs with chin-shaped tubercles", "Pale spines pressed flat against the body", "Wine-red flowers" }),
+            [CactusKind.Rebutia] = ("rebutia", "Rebutia minuscula", "Tiny tubercled globes that offset into a cushion and, in spring, ring themselves with flowers from around their base.", new[] { "Globes 5 cm across", "Spirals of small tubercles with fine white spines", "Orange-red flowers from the lower sides" }),
+            [CactusKind.BalloonCactus] = ("balloon", "Parodia magnifica", "A blue-green globe with sharp, straight ribs lined with golden bristles, clustering with age. Sulphur-yellow flowers open in the woolly crown.", new[] { "11–15 sharp ribs", "Golden bristle spines along the rib edges", "Sulphur-yellow flowers" }),
+            [CactusKind.BunnyEars] = ("bunnyears", "Opuntia microdasys", "Small, velvety pads that branch in pairs like ears, with no spines, only dense tufts of golden glochids that detach at a touch.", new[] { "Pads 6–15 cm", "No spines; golden glochid tufts in a tight lattice", "Lemon-yellow flowers on the pad rims" }),
+            [CactusKind.SantaRita] = ("santarita", "Opuntia santa-rita", "Round pads that blush violet in cold and drought, with few spines, and yellow flowers with a red heart.", new[] { "Pads nearly round, 10–20 cm", "Purple-blue skin, deepest in winter", "Yellow flowers with a red centre" }),
+            [CactusKind.CaneCholla] = ("canecholla", "Cylindropuntia imbricata", "A shrubby tree of jointed, cylindrical stems covered in long, raised tubercles. Magenta flowers top the newest joints.", new[] { "Joints 10–40 cm, strongly tubercled", "Papery-sheathed spines", "Magenta flowers, then yellow fruit" }),
+            [CactusKind.DragonFruit] = ("dragonfruit", "Selenicereus undatus", "A climbing, three-winged stem that arches and roots as it goes, in jointed lengths. Its enormous white night flower becomes the pitaya.", new[] { "3 wavy wings per stem", "Short spines in small clusters", "Night flowers up to 30 cm" }),
+            [CactusKind.QueenOfTheNight] = ("queennight", "Epiphyllum oxypetalum", "A forest epiphyte with long, flat, wavy-edged stems that look like leaves, arching out of the pot. It opens one huge, fragrant white flower for a single night.", new[] { "Flat stems 30 cm or more, wavy margins", "No spines", "Flowers 25 cm, open for one night" }),
+            [CactusKind.RatTail] = ("rattail", "Disocactus flagelliformis", "Pencil-thin, golden-spined stems that spill over the rim of a hanging pot, with bright magenta tubular flowers along their length.", new[] { "Stems 1–2 cm thick, up to 1 m long", "10–14 low ribs, golden-brown bristles", "Zygomorphic magenta flowers" }),
+            [CactusKind.SandDollar] = ("sanddollar", "Astrophytum asterias", "A flat, spineless dome divided by shallow furrows into eight segments, speckled with white scales and dotted with woolly areoles down the middle of each rib.", new[] { "8 shallow ribs, almost flat", "White trichome flecks; no spines", "Yellow flower with a red throat" }),
+            [CactusKind.EasterLily] = ("easterlily", "Echinopsis oxygona", "A ribbed globe that pups freely, and for a day or two each summer carries trumpet flowers far longer than the plant is tall.", new[] { "11–14 sharp ribs", "Short, dark-tipped spines", "Pink-white trumpet flowers 20 cm long" }),
+            [CactusKind.Ladyfinger] = ("ladyfinger", "Mammillaria elongata", "Finger-thick, tubercled stems that sprawl outward from the base into a dense clump, each tubercle crowned with a golden starburst of spines.", new[] { "Stems 1–3 cm thick", "15–20 golden radial spines per areole", "Small cream flowers near the stem tips" }),
+            [CactusKind.OldLady] = ("oldlady", "Mammillaria hahniana", "A tubercled globe veiled in curly white hairs and bristles, with a ring of small magenta flowers circling the crown.", new[] { "Spiralled tubercles (13 and 21)", "White hairs and bristles, one dark central spine", "Crown of magenta flowers" }),
+        };
         public static CactusSpecies Get(CactusKind k) { if (cache == null) Build(); return cache[k]; }
         public static IEnumerable<CactusSpecies> All { get { if (cache == null) Build(); return cache.Values; } }
 
@@ -97,6 +126,13 @@ namespace Realms.Cacti
             cache = new Dictionary<CactusKind, CactusSpecies>();
             foreach (var s in new[] { Saguaro(), Barrel(), Opuntia(), Cholla(), OrganPipe(), Mammillaria(), Astrophytum(), Schlumbergera(), OldMan(), Hedgehog() })
                 cache[s.Kind] = s;
+            // the other twenty are grown from their genome presets through the generic grammar
+            foreach (var kv in MoreInfo)
+            {
+                var g = CactusGenome.Preset(kv.Key); var s = g.ToSpecies();
+                s.Kind = kv.Key; s.Id = kv.Value.id; s.Name = g.name; s.Latin = kv.Value.latin; s.Blurb = kv.Value.blurb; s.Facts = kv.Value.facts;
+                cache[s.Kind] = s;
+            }
         }
 
         // 1 ───────────────────────────────────────────────────────────
