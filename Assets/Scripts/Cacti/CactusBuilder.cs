@@ -17,12 +17,14 @@ namespace Realms.Cacti
         public int style, gen; public Vector3 basePos, H, L, U; public float len, wid, thick, age, g;
     }
     public sealed class FlowerOrgan { public Vector3 pos, dir; public float g, scale; }
+    public sealed class LeafOrgan { public int style; public Vector3 basePos, dir, n; public float len, wid, thick, g, age; }
 
     public sealed class Organs
     {
         public readonly List<StemOrgan> stems = new List<StemOrgan>();
         public readonly List<PadOrgan> pads = new List<PadOrgan>();
         public readonly List<FlowerOrgan> flowers = new List<FlowerOrgan>();
+        public readonly List<LeafOrgan> leaves = new List<LeafOrgan>();
     }
 
     /// <summary>
@@ -113,6 +115,16 @@ namespace Realms.Cacti
                         Tropism(pad.len);
                         break;
                     }
+                    case 'L': // leaf: length, width, thickness (× width), open°, inner°, growth steps, base offset, lifetime (0 = forever)
+                    {
+                        float dur = m.P.Length > 5 && m[5] != 0 ? m[5] : 2, g = Grow(m.B, dur);
+                        if (g <= 0 || (m.P.Length > 7 && m[7] > 0 && T - m.B > m[7])) break;   // old leaves on a growing tip drop off
+                        float ang = Mathf.Lerp(m[4], m[3], SStep(0, dur * 1.3f, T - m.B)) * DEG;  // unfolds from the inner angle to the open one
+                        var dir = (st.H * Mathf.Cos(ang) + st.U * Mathf.Sin(ang)).normalized; var n = (st.H * Mathf.Sin(ang) - st.U * Mathf.Cos(ang)).normalized;
+                        o.leaves.Add(new LeafOrgan { style = st.style, basePos = st.pos + st.U * (m.P.Length > 6 ? m[6] : 0), dir = dir, n = n,
+                            len = m[0] * (.15f + .85f * g), wid = m[1] * (.25f + .75f * g), thick = m[2], g = g, age = T - m.B });
+                        break;
+                    }
                     case 'K':
                     {
                         float g = Grow(m.B, 1); if (g <= 0) break;
@@ -128,7 +140,7 @@ namespace Realms.Cacti
                         float rEnd = so.pts[so.pts.Count - 1].r, r = rEnd * (sty.ribDepth != 0 ? 1 - sty.ribDepth * .3f : 1);
                         float Ltot = 0; for (int i = 1; i < so.pts.Count; i++) Ltot += (so.pts[i].p - so.pts[i - 1].p).magnitude;
                         // same dome length the mesher uses, so the crown sits on the surface even on short stems
-                        float capL = so.body ? Mathf.Min(Ltot * .8f, rEnd * 1.05f) : Mathf.Min(Ltot * .9f, rEnd * sty.cap);
+                        float capL = so.body ? Mathf.Min(Ltot * .8f, rEnd * 1.05f * (1 - .75f * sty.topFlat)) : Mathf.Min(Ltot * .9f, rEnd * sty.cap);
                         var e1 = AnyPerp(dir); var e2 = Vector3.Cross(dir, e1);
                         float lat = m[1] * DEG, fsc = m.P.Length > 2 && m[2] != 0 ? m[2] : 1, ringLen = 0;
                         foreach (var q in spec.Flower.rings) ringLen = Mathf.Max(ringLen, q.len);
@@ -198,6 +210,7 @@ namespace Realms.Cacti
             { float est = 0; foreach (var s in org.stems) est += StemCost(s, spec); if (est > 450000) B.dsScale = est / 450000; }
             foreach (var s in org.stems) BuildStem(B, s, spec, R, res);
             foreach (var p in org.pads) BuildPad(B, p, spec, R, res);
+            foreach (var l in org.leaves) BuildLeaf(B, l, spec);
             foreach (var f in org.flowers) BuildFlower(B, f, spec.Flower, R);
             if (!spines) { B.spine.v.Clear(); B.spine.c.Clear(); B.spine.i.Clear(); }
             res.mesh = ToMesh(B, mesh);
@@ -234,13 +247,14 @@ namespace Realms.Cacti
         }
 
         // ── surface profile: ribs or tubercles ──
-        static float Profile(CactusStyle sty, float th, float s, float r, float rRef, out float crest)
+        static float RibWaveAt(CactusStyle sty, float s, float rRef) => sty.ribWave > 0 ? sty.ribWave * 2.5f * Mathf.Sin(s / Mathf.Max(.004f, rRef * .22f)) : 0;
+        static float Profile(CactusStyle sty, float th, float s, float r, float rRef, out float crest, float Lt = 0)
         {
             // ribs and tubercles combine multiplicatively, so a hybrid can express both
             float rr = r; crest = .5f;
             if (sty.ribs > 0)
             {
-                float c = .5f + .5f * Mathf.Cos(sty.ribs * (th - sty.twist * s));
+                float c = .5f + .5f * Mathf.Cos(sty.ribs * (th - sty.twist * s) + RibWaveAt(sty, s, rRef));
                 crest = Mathf.Pow(c, sty.ribPow);
                 rr *= 1 - sty.ribDepth * (1 - crest);
             }
@@ -252,6 +266,8 @@ namespace Realms.Cacti
                 rr *= 1 + sty.tub.amp * q;
                 crest = sty.ribs > 0 ? Mathf.Max(crest * .6f, Mathf.Sqrt(q)) : Mathf.Sqrt(q);
             }
+            // living-stone fissure: a slit across the top that splits the body into two lobes
+            if (sty.fissure > 0 && Lt > 0) { float c = Mathf.Cos(th); rr *= 1 - sty.fissure * .9f * Mathf.Exp(-(c * c) / .012f) * SStep(.3f, .92f, s / Lt); }
             return rr;
         }
 
@@ -360,7 +376,7 @@ namespace Realms.Cacti
             var S = new float[C.Count];
             for (int i = 1; i < C.Count; i++) S[i] = S[i - 1] + (C[i].p - C[i - 1].p).magnitude;
             float Ltot = S[S.Length - 1]; if (Ltot < 1e-4f) return;
-            float capL = stem.body ? Mathf.Min(Ltot * .8f, rEnd * 1.05f) : Mathf.Min(Ltot * .9f, rEnd * sty.cap);
+            float capL = stem.body ? Mathf.Min(Ltot * .8f, rEnd * 1.05f * (1 - .75f * sty.topFlat)) : Mathf.Min(Ltot * .9f, rEnd * sty.cap);
             float capStart = Ltot - capL;
 
             var rows = new List<Row>();
@@ -386,6 +402,7 @@ namespace Realms.Cacti
                 float r = row.r0, s = row.s;
                 if (stem.branch && sty.neck > 0) r *= Mathf.Lerp(sty.neck, 1, SStep(0, rEnd * 1.6f, s));
                 if (stem.body) r *= Mathf.Lerp(.86f, 1, SStep(0, Mathf.Min(Ltot * .3f, rEnd * .5f), s));
+                if (stem.body && sty.topFlat > 0) r *= Mathf.Lerp(1 - .32f * sty.topFlat, 1, SStep(0, Ltot * .85f, s));   // stones widen upward
                 if (s > capStart) { float x = (s - capStart) / capL; r *= Mathf.Sqrt(Mathf.Max(0, 1 - x * x)); }
                 row.r = r; rows[i] = row;
             }
@@ -397,14 +414,17 @@ namespace Realms.Cacti
                 var w = rows[i];
                 for (int k = 0; k < Mr; k++)
                 {
-                    float th = TAU * k / Mr; float rr = Profile(sty, th, w.s, w.r, rRef, out float crest);
+                    float th = TAU * k / Mr; float rr = Profile(sty, th, w.s, w.r, rRef, out float crest, Ltot);
                     var d = w.n * Mathf.Cos(th) + w.b * Mathf.Sin(th);
                     float shade = .74f + .3f * crest + ((float)L.Hash3(k, i, 11) - .5f) * .05f;
                     var c = new Color(col.r * shade, col.g * shade, col.b * shade);
                     if (sty.cork != null) { float f = SStep(sty.cork.h, 0, w.s) * (stem.branch ? 0 : 1) * SStep(.3f, 1, w.g); c = Color.Lerp(c, sty.cork.col, f * .85f); }
                     if (sty.tip.HasValue) { float f = SStep(Ltot - .14f, Ltot, w.s); c = Color.Lerp(c, sty.tip.Value, f * .6f); }
                     if (sty.fleck > 0) { float f = (float)L.Hash3(k, Mathf.FloorToInt(w.s / .0025f), 5); if (f < sty.fleck) c = Color.Lerp(c, new Color(.92f, .92f, .92f), .55f + .3f * f / sty.fleck); }
-                    body.V(w.c + d * rr, c);
+                    var vp = w.c + d * rr;
+                    if (sty.bands > 0) { float f = SStep(.25f, .75f, .5f + .5f * Mathf.Sin(TAU * w.s / Mathf.Max(.004f, rEnd * .3f))); c = Color.Lerp(c, sty.bandCol, sty.bands * f * .85f); }
+                    if (sty.mottle > 0) { float f = SStep(.5f, .9f, w.s / Ltot), nz = VNoise(vp, 1 / Mathf.Max(.002f, rEnd * .22f)); c = Color.Lerp(c, sty.mottleCol, sty.mottle * f * (.25f + .75f * SStep(.38f, .62f, nz))); }
+                    body.V(vp, c);
                 }
             }
             for (int i = 0; i < rows.Count - 1; i++)
@@ -431,7 +451,7 @@ namespace Realms.Cacti
                 if (s <= 0 || s >= Ltot - .002f) return;
                 var f = At(s); if (f.r < .002f) return;
                 var bvec = Vector3.Cross(f.t, f.n); var d = f.n * Mathf.Cos(th) + bvec * Mathf.Sin(th);
-                float rr = Profile(sty, th, s, f.r, rRef, out _);
+                float rr = Profile(sty, th, s, f.r, rRef, out _, Ltot);
                 var f2 = At(Mathf.Min(Ltot, s + .002f)); float dr = (f2.r - f.r) / .002f;
                 var nrm = (d - f.t * dr).normalized;
                 Areole(B, sty, f.c + d * rr, nrm, f.t, f.g, key, R, res);
@@ -450,7 +470,94 @@ namespace Realms.Cacti
             {
                 for (int j = 0; j < sty.ribs; j++)
                     for (float s = sp * (.6f + .5f * (j % 2)); s < Ltot; s += sp)
-                        Place(TAU * j / sty.ribs + sty.twist * s, s, j * 7919 + JsR(s * 1000));
+                        Place(TAU * j / sty.ribs + sty.twist * s - RibWaveAt(sty, s, rRef) / sty.ribs, s, j * 7919 + JsR(s * 1000));
+            }
+        }
+
+        /// <summary>Smooth value noise on a lattice (for stone windows).</summary>
+        static float VNoise(Vector3 p, float f)
+        {
+            float x = p.x * f, y = p.y * f, z = p.z * f; int xi = Mathf.FloorToInt(x), yi = Mathf.FloorToInt(y), zi = Mathf.FloorToInt(z);
+            float u = x - xi, v = y - yi, w = z - zi, su = u * u * (3 - 2 * u), sv = v * v * (3 - 2 * v), sw = w * w * (3 - 2 * w);
+            float H(int a, int b, int c) => (float)L.Hash3(xi + a + 1000 * (zi + c), yi + b, 77);
+            float x00 = Mathf.Lerp(H(0, 0, 0), H(1, 0, 0), su), x10 = Mathf.Lerp(H(0, 1, 0), H(1, 1, 0), su), x01 = Mathf.Lerp(H(0, 0, 1), H(1, 0, 1), su), x11 = Mathf.Lerp(H(0, 1, 1), H(1, 1, 1), su);
+            return Mathf.Lerp(Mathf.Lerp(x00, x10, sv), Mathf.Lerp(x01, x11, sv), sw);
+        }
+
+        // ── leaves: a closed cross-section (flat-topped and keeled, or round) swept along a recurving centreline ──
+        static float LeafWidth(float shape, float u)
+        {
+            float lance = (1 - Mathf.Pow(u, 1.3f)) * (.7f + .3f * SStep(0, .12f, u)), spoon = (.45f + .7f * u) * Mathf.Sqrt(Mathf.Max(0, 1 - Mathf.Pow(u, 6))) / .88f, orb = Mathf.Sqrt(Mathf.Max(0, 1 - (2 * u - 1) * (2 * u - 1)));
+            return shape < .5f ? Mathf.Lerp(lance, spoon, shape * 2) : Mathf.Lerp(spoon, orb, shape * 2 - 1);
+        }
+        static float LeafThickness(float shape, float u)
+        {
+            float lance = 1 - u * .75f, spoon = (1 - .4f * u) * Mathf.Sqrt(Mathf.Max(0, 1 - Mathf.Pow(u, 6))), orb = Mathf.Sqrt(Mathf.Max(0, 1 - (2 * u - 1) * (2 * u - 1)));
+            return shape < .5f ? Mathf.Lerp(lance, spoon, shape * 2) : Mathf.Lerp(spoon, orb, shape * 2 - 1);
+        }
+        struct LeafRow { public float u, w, t; public Vector3 p, d, n; }
+        static void BuildLeaf(Bufs B, LeafOrgan lf, CactusSpecies spec)
+        {
+            var sty = spec.Styles[lf.style]; var Lf = sty.leaf ?? new LeafSpec(); int nu = B.draft ? 6 : 10, NL = B.draft ? 8 : 10;
+            float shape = Lf.shape, sect = Lf.sect, len0 = lf.len, W = lf.wid, curl = Lf.curl * DEG * (.35f + .65f * lf.g);
+            var side = Vector3.Cross(lf.dir, lf.n).normalized; var body = B.body; int baseIdx = body.v.Count;
+            var rows = new LeafRow[nu + 1]; var p = lf.basePos;
+            for (int i = 0; i <= nu; i++)
+            {
+                float u = (float)i / nu, a = curl * Mathf.Pow(u, 1.3f);
+                var d = (lf.dir * Mathf.Cos(a) - lf.n * Mathf.Sin(a)).normalized; var n = (lf.n * Mathf.Cos(a) + lf.dir * Mathf.Sin(a)).normalized;
+                if (i > 0) { float am = curl * Mathf.Pow(u - .5f / nu, 1.3f); p += (lf.dir * Mathf.Cos(am) - lf.n * Mathf.Sin(am)).normalized * (len0 / nu); }
+                rows[i] = new LeafRow { u = u, p = p, d = d, n = n, w = W * LeafWidth(shape, u) * .5f, t = W * lf.thick * LeafThickness(shape, u) * .5f };
+            }
+            var col = sty.col;
+            foreach (var r in rows)
+                for (int k = 0; k < NL; k++)
+                {
+                    float ph = TAU * k / NL, sp = Mathf.Sin(ph), cp = Mathf.Cos(ph);
+                    float y = sp > 0 ? sp * r.t * Mathf.Lerp(.4f, 1, sect) : -Mathf.Pow(-sp, Mathf.Lerp(.55f, 1, sect)) * r.t;   // flat or channelled top, keeled back
+                    var q = r.p + side * (cp * r.w) + r.n * y;
+                    float sh = (sp > 0 ? 1 : .8f) + ((float)L.Hash3(k, JsR(r.u * 10), lf.style + 3) - .5f) * .06f;
+                    var c = new Color(col.r * sh, col.g * sh, col.b * sh);
+                    float pale = .35f * (1 - SStep(0, .25f, r.u));   // paler leaf base
+                    c = new Color(Mathf.Lerp(c.r, c.r * .75f + .2f, pale), Mathf.Lerp(c.g, c.g * .75f + .2f, pale), Mathf.Lerp(c.b, c.b * .75f + .2f, pale));
+                    if (Lf.tipAmt > 0) c = Color.Lerp(c, Lf.tipCol, Lf.tipAmt * SStep(.5f, 1, r.u));
+                    if (Lf.edge > 0) c = Color.Lerp(c, Lf.edgeCol, Lf.edge * Mathf.Pow(Mathf.Abs(cp), 8));
+                    if (Lf.window > 0) c = Color.Lerp(c, new Color(.8f, .9f, .76f), Lf.window * SStep(.72f, .96f, r.u) * (sp > -.3f ? 1 : .5f));
+                    c.a = 1; body.V(q, c);
+                }
+            for (int i = 0; i < nu; i++)
+                for (int k = 0; k < NL; k++) { int a = baseIdx + i * NL + k, b = baseIdx + i * NL + (k + 1) % NL; body.T(a, a + NL, b); body.T(b, a + NL, b + NL); }
+            // close the tip and the base
+            var last = rows[nu]; var tipP = last.p + last.d * (Mathf.Max(last.w, last.t) * .6f);
+            int ti = body.V(tipP, Lf.tipAmt > 0 ? Lf.tipCol : col), tb = baseIdx + nu * NL;
+            for (int k = 0; k < NL; k++) body.T(tb + k, ti, tb + (k + 1) % NL);
+            int bi = body.V(rows[0].p, col);
+            for (int k = 0; k < NL; k++) body.T(baseIdx + (k + 1) % NL, bi, baseIdx + k);
+            // marginal teeth, terminal spine, white tubercle bands
+            if (Lf.teethN > 0 && Lf.teethLen > .0003f && lf.g > .2f)
+                foreach (int sg in new[] { 1, -1 })
+                    for (int q = 0; q < Lf.teethN; q++)
+                    {
+                        if (B.draft && (q & 1) != 0) continue;
+                        float u = .1f + .84f * (q + .5f) / Lf.teethN; int i = Mathf.Min(nu - 1, Mathf.FloorToInt(u * nu)); var r = rows[i]; var r2 = rows[i + 1]; float f = u * nu - i;
+                        var pm = r.p + (r2.p - r.p) * f + side * (sg * Mathf.Lerp(r.w, r2.w, f)); var dd = (side * sg + r.d * .7f).normalized;
+                        AddSpine(B.spine, pm, dd, Lf.teethLen * (1 - .45f * u) * lf.g, Lf.teethLen * .28f, Lf.teethCol, Lf.teethCol * .7f);
+                    }
+            if (Lf.tipSpine > .0005f) AddSpine(B.spine, tipP, last.d, Lf.tipSpine * lf.g, Mathf.Max(.0006f, Lf.tipSpine * .07f), Lf.teethCol, new Color(.15f, .12f, .1f));
+            if (Lf.spots > .02f && W > .004f)
+            {
+                int nb = Mathf.Clamp(JsR(Lf.spots * len0 / (W * .16f)), 1, 28);
+                for (int b = 0; b < nb; b++)
+                {
+                    if (B.draft && (b & 1) != 0) continue;
+                    float u = (b + .5f) / nb * .9f; int i = Mathf.Min(nu - 1, Mathf.FloorToInt(u * nu)); var r = rows[i];
+                    for (int q = -1; q <= 1; q++)
+                    {
+                        float ph = -Mathf.PI / 2 + q * .7f, sp = Mathf.Sin(ph), cp = Mathf.Cos(ph);
+                        var pos = r.p + side * (cp * r.w) + r.n * (-Mathf.Pow(-sp, Mathf.Lerp(.55f, 1, sect)) * r.t);
+                        AddTuft(B.wool, pos, (r.n * sp + side * cp).normalized, W * .07f * (.6f + .4f * Lf.spots), Lf.spotCol);
+                    }
+                }
             }
         }
 

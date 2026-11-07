@@ -13,7 +13,7 @@ namespace Realms.Cacti
     public class CactusGrower : MonoBehaviour
     {
         public CactusKind species = CactusKind.Saguaro;
-        [Tooltip("Optional genome code (CG1.…) from the breeder or the browser atlas. When set, it overrides 'species'.")]
+        [Tooltip("Optional genome code (CG2.…, or an older CG1.…) from the breeder or the browser atlas. When set, it overrides 'species'.")]
         [TextArea(1, 4)] public string genomeCode;
         public int seed = 7;
         [Range(0, 1)] public float growth = 1f;

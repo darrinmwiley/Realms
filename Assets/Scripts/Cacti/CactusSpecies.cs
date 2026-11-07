@@ -12,7 +12,11 @@ namespace Realms.Cacti
         FishhookBarrel, SanPedro, Cardon,
         Peyote, SilverTorch, Espostoa, BlueCandle, ChinCactus, Rebutia, BalloonCactus,
         BunnyEars, SantaRita, CaneCholla, DragonFruit,
-        QueenOfTheNight, RatTail, SandDollar, EasterLily, Ladyfinger, OldLady
+        QueenOfTheNight, RatTail, SandDollar, EasterLily, Ladyfinger, OldLady,
+        // succulents and oddities beyond the cacti (rosettes, stones, trees, trailers)
+        AloeVera, SpiralAloe, CenturyPlant, QueenVictoria, Echeveria, ZebraHaworthia, WindowHaworthia, Gasteria,
+        HensAndChicks, BabyToes, LivingRock, BuddhasTemple, LivingStones, SplitRock, BaseballPlant, TurksCap, BrainCactus,
+        QuiverTree, BlackRose, MadagascarPalm, StringOfPearls, MedusasHead
     }
 
     public sealed class SpineSpec
@@ -50,6 +54,20 @@ namespace Realms.Cacti
         public WoolSpec wool;
         public SpineSpec spines;
         public HairSpec hair;
+        // stones, euphorbias and brain cacti
+        public float ribWave;              // undulating ribs (Stenocactus)
+        public float topFlat;              // flat-topped, upward-widening body (Lithops)
+        public float fissure;              // slit across the top splitting the body in two lobes
+        public float mottle; public Color mottleCol;   // window pattern on the top
+        public float bands; public Color bandCol;      // transverse colour bands (Euphorbia obesa)
+        public LeafSpec leaf;              // set on leaf styles
+    }
+
+    /// <summary>Leaf look: shape 0 lance → .5 spoon → 1 bead; sect 0 flat → 1 round; curl recurves (+) or incurves (−) along the leaf.</summary>
+    public sealed class LeafSpec
+    {
+        public float shape, sect, curl, teethLen, tipSpine, edge, window, spots, tipAmt; public int teethN;
+        public Color teethCol, edgeCol, spotCol, tipCol;
     }
 
     public sealed class PetalRing
@@ -97,6 +115,28 @@ namespace Realms.Cacti
 
         static readonly Dictionary<CactusKind, (string id, string latin, string blurb, string[] facts)> MoreInfo = new Dictionary<CactusKind, (string, string, string, string[])>
         {
+            [CactusKind.AloeVera] = ("aloevera", "Aloe vera", "Thick, grey-green, gel-filled leaves in a stemless rosette, softly toothed and flecked white when young, offsetting into a clump. Yellow tubular flowers hang from a tall spike.", new[] { "Leaves 40–50 cm, fleshy, soft-toothed", "Pale flecks on young leaves", "Yellow tubular flowers on a spike to 90 cm" }),
+            [CactusKind.SpiralAloe] = ("spiralaloe", "Aloe polyphylla", "A mountain aloe from Lesotho whose leaves, up to 150 of them, stack into five spirals, clockwise or anticlockwise, once the rosette is wider than a hand.", new[] { "Five spiral ranks of 15–30 leaves each", "Grey-green leaves with dark brown tips", "Salmon-pink flowers on a branched stalk" }),
+            [CactusKind.CenturyPlant] = ("agave", "Agave americana", "A huge rosette of blue-grey, sharply toothed leaves that recurve at the tips. After decades it sends up a branched flower mast several metres tall, then dies.", new[] { "Leaves to 2 m with hooked teeth and a terminal spine", "Flowers once, on a stalk up to 8 m", "Offsets from the base carry on" }),
+            [CactusKind.QueenVictoria] = ("queenvictoria", "Agave victoriae-reginae", "A tight dome of stiff, dark green leaves, each outlined in white lines and tipped with a short black spine. A slow, geometric little agave.", new[] { "Leaves 10–20 cm, triangular in section", "White margins and keel lines", "One flower spike, after 20–30 years" }),
+            [CactusKind.Echeveria] = ("echeveria", "Echeveria 'Perle von Nürnberg'", "A pastel rosette of spoon-shaped leaves dusted with a powdery bloom, lilac-grey with pink tips. Coral bells nod from arching stalks.", new[] { "Spoon-shaped, pruinose leaves", "Pink-lilac colour deepens in sun", "Coral flowers on arching stalks" }),
+            [CactusKind.ZebraHaworthia] = ("zebra", "Haworthiopsis attenuata", "Small, stiff, dark green leaves banded with rows of raised white tubercles, in a clump of rosettes. Tiny white flowers on wiry stalks.", new[] { "Leaves 3–8 cm, incurved", "Bands of white tubercles on the outer face", "Clumps freely from offsets" }),
+            [CactusKind.WindowHaworthia] = ("cooperi", "Haworthia cooperi", "Plump, translucent leaf tips like drops of green glass. In the wild only the windows show above the sand, letting light into the leaf.", new[] { "Leaves 2–4 cm, swollen", "Translucent \"windowed\" tips", "Forms dense mounds" }),
+            [CactusKind.Gasteria] = ("gasteria", "Gasteria carinata var. verrucosa", "Thick, tongue-shaped leaves stacked in two opposite ranks and covered in white warts. Curved, stomach-shaped pink flowers give the genus its name.", new[] { "Leaves in two ranks (distichous)", "Rough white tubercles", "Pink-and-green gaster-shaped flowers" }),
+            [CactusKind.HensAndChicks] = ("hens", "Sempervivum tectorum", "A mother rosette with red-tipped, incurved leaves, ringed by chicks on short runners that root and make chicks of their own.", new[] { "Rosettes 5–10 cm", "Red-brown leaf tips", "Pink starry flowers, then the rosette dies" }),
+            [CactusKind.BabyToes] = ("babytoes", "Fenestraria rhopalophylla", "Clusters of upright, club-shaped leaves, each capped with a clear window. In the desert they sit buried to the tips and light enters through the windows.", new[] { "Club leaves 2–3 cm", "Translucent window at each tip", "White daisy flowers" }),
+            [CactusKind.LivingRock] = ("livingrock", "Ariocarpus fissuratus", "A cactus that hides as a stone: a flat rosette of grey, triangular, fissured tubercles instead of ribs, flush with the ground. Pink flowers open from the woolly centre.", new[] { "Tubercles triangular, warty, grey", "Barely rises above the soil", "Pink flowers in autumn" }),
+            [CactusKind.BuddhasTemple] = ("buddha", "Crassula 'Buddha's Temple'", "Broad, flat leaves stacked in opposite pairs so tightly they form square, pagoda-like columns.", new[] { "Leaves in decussate pairs (90°)", "Columns 10–15 cm tall", "Tiny pink flowers at the top" }),
+            [CactusKind.LivingStones] = ("lithops", "Lithops karasmontana", "Each plant is one pair of fused leaves split by a fissure, flat-topped and patterned like the pebbles around it. The translucent top window lets light into the buried leaf. A daisy flower opens from the fissure.", new[] { "Body 2–3 cm, mostly underground", "Mottled windows on the flat top", "Yellow or white daisy from the fissure" }),
+            [CactusKind.SplitRock] = ("splitrock", "Pleiospilos nelii", "Two plump grey hemispheres speckled with dark dots, split by a deep cleft like a broken stone. A huge apricot flower bursts from the crack.", new[] { "Leaf pair 5–8 cm across", "Grey-green with dark dots", "Apricot to orange daisy flowers" }),
+            [CactusKind.BaseballPlant] = ("obesa", "Euphorbia obesa", "Not a cactus at all: a spineless South African euphorbia shaped like a ball, with eight ribs and stitched-looking purple bands.", new[] { "8 broad ribs, no spines", "Grey-green with purplish transverse bands", "Tiny cyathia at the top (sexes on separate plants)" }),
+            [CactusKind.TurksCap] = ("melocactus", "Melocactus matanzanus", "A ribbed green globe that, once mature, stops growing and raises a red, woolly, bristly cap: the cephalium, from which all its small pink flowers emerge.", new[] { "10–14 ribs, stout spines", "Red-brown bristly cephalium on mature plants", "Small pink flowers from the cap" }),
+            [CactusKind.BrainCactus] = ("brain", "Stenocactus multicostatus", "Up to a hundred paper-thin, wavy ribs fold the globe like a brain, with flat papery central spines between them.", new[] { "Very many thin, undulating ribs", "Flattened, papery central spines", "White flowers striped purple" }),
+            [CactusKind.QuiverTree] = ("quiver", "Aloidendron dichotomum", "A tree aloe from Namibia whose pale, golden trunk forks again and again into a rounded crown, each branch tipped with a rosette of blue-green leaves.", new[] { "Up to 7 m; branches fork in twos", "Bark in golden, papery plates", "Yellow flowers on short branched spikes" }),
+            [CactusKind.BlackRose] = ("aeonium", "Aeonium arboreum 'Zwartkop'", "Glossy, almost black rosettes held up on branching bare stems like a little tree, flowering in yellow cones.", new[] { "Rosettes 10–20 cm, burgundy-black", "Branching stems to 1 m", "Yellow pyramidal flower clusters" }),
+            [CactusKind.MadagascarPalm] = ("pachypodium", "Pachypodium lamerei", "Not a palm and not a cactus: a swollen, silver-grey trunk armed with spines in threes, crowned by a tuft of long, glossy leaves and white flowers.", new[] { "Spines in threes along the trunk", "Leaves only at the top", "White, frangipani-like flowers" }),
+            [CactusKind.StringOfPearls] = ("pearls", "Curio rowleyanus", "Thread-thin stems spill from the pot strung with pea-sized, bead-like leaves, each with a translucent stripe that works as a window.", new[] { "Bead leaves 6 mm, spherical", "Trailing stems up to 1 m", "White, cinnamon-scented puff flowers" }),
+            [CactusKind.MedusasHead] = ("medusa", "Euphorbia caput-medusae", "A squat central body from which dozens of snake-like, tubercled arms writhe outward along the ground.", new[] { "Central caudex up to 20 cm", "Many radiating arms, 30–80 cm", "Tiny white-fringed cyathia at the arm tips" }),
             [CactusKind.FishhookBarrel] = ("fishhook", "Ferocactus wislizenii", "A tall, leaning barrel with deep ribs. Each areole carries pale bristly radials and a stout red central spine hooked at the tip.", new[] { "20–28 ribs, up to 2 m tall", "Hooked red central spines, pale radials", "Orange-red flowers in a ring at the crown" }),
             [CactusKind.SanPedro] = ("sanpedro", "Echinopsis pachanoi", "A fast Andean column that branches from the base into a clump of blue-green, round-ribbed stems with short spines, and opens huge, scented white flowers at night.", new[] { "6–8 broad, rounded ribs", "Few short dark spines", "Night flowers up to 20 cm" }),
             [CactusKind.Cardon] = ("cardon", "Pachycereus pringlei", "The tallest cactus on Earth: a massive grey-green trunk that branches low into thick, upswept arms.", new[] { "Up to 19 m, trunk to 1 m thick", "11–17 ribs, short dark spines", "White flowers near the arm tips in spring" }),

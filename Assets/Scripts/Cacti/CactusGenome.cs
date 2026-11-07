@@ -35,8 +35,8 @@ namespace Realms.Cacti
             public Slot(string n, string g, int c, GT t, double a, double b, bool col) { Name = n; Gene = g; Chr = c; Type = t; Min = a; Max = b; Color = col; }
         }
 
-        public static readonly string[] Chromosomes = { "Habit", "Surface", "Armature", "Flower" };
-        public enum Form { Column, Globe, Pad }
+        public static readonly string[] Chromosomes = { "Habit", "Surface", "Armature", "Flower", "Leaf" };
+        public enum Form { Column, Globe, Pad, Rosette }
         static readonly int[][] TubPairs = { new[] { 3, 5 }, new[] { 5, 8 }, new[] { 8, 13 }, new[] { 13, 21 } };
 
         static Gene G_(string n, int c, GT t, float a, float b) => new Gene(n, c, t, a, b);
@@ -47,9 +47,9 @@ namespace Realms.Cacti
         public static readonly Gene[] Genes =
         {
             // Habit
-            G_("form",0,GT.E,0,2), G_("steps",0,GT.I,6,26), G_("thicken",0,GT.F,2,7), G_("r0",0,GT.F,.4f,1), G_("trop",0,GT.F,-2,2),
+            G_("form",0,GT.E,0,3), G_("steps",0,GT.I,6,26), G_("thicken",0,GT.F,2,7), G_("r0",0,GT.F,.4f,1), G_("trop",0,GT.F,-2,2),
             G_("shoots",0,GT.I,1,14), G_("shootDelay",0,GT.I,0,4), G_("shootP",0,GT.F,0,1), G_("shootLean",0,GT.F,0,45), G_("shootSpread",0,GT.F,0,.03f),
-            G_("mainSegs",0,GT.I,2,22), G_("shootMin",0,GT.I,1,14), G_("shootMax",0,GT.I,1,16), G_("segLen",0,GT.F,.03f,.4f), G_("radius",0,GT.F,.02f,.35f),
+            G_("mainSegs",0,GT.I,2,22), G_("shootMin",0,GT.I,1,14), G_("shootMax",0,GT.I,1,16), G_("segLen",0,GT.F,.01f,.4f), G_("radius",0,GT.F,.002f,.35f),
             G_("armP",0,GT.F,0,1), G_("armWhorl",0,GT.I,1,3), G_("armStart",0,GT.F,0,1), G_("armEnd",0,GT.F,0,1), G_("maxArms",0,GT.I,0,10), G_("armPitch",0,GT.F,15,90),
             G_("armSegs",0,GT.I,1,12), G_("armLenR",0,GT.F,.3f,1.2f), G_("armR",0,GT.F,.3f,1), G_("armTrop",0,GT.F,-2,2), G_("neck",0,GT.F,0,1),
             G_("jointed",0,GT.B,0,1), G_("maxDepth",0,GT.I,1,4), G_("jointBranchP",0,GT.F,0,1), G_("jointAng",0,GT.F,10,60),
@@ -71,7 +71,23 @@ namespace Realms.Cacti
             G_("fcol",3,GT.C,0,1), G_("fbase",3,GT.C,0,1), G_("flen",3,GT.F,.008f,.07f), G_("fwid",3,GT.F,.004f,.045f), G_("fn",3,GT.I,4,14),
             G_("felev",3,GT.F,10,70), G_("fcurl",3,GT.F,0,100), G_("frings",3,GT.I,1,2), G_("stamens",3,GT.I,0,80), G_("stLen",3,GT.F,.003f,.035f),
             G_("crownN",3,GT.I,1,14), G_("crownLat",3,GT.F,0,75), G_("fstart",3,GT.F,.4f,1), G_("fscale",3,GT.F,.6f,1.4f), G_("fr0",3,GT.F,.002f,.02f),
+            // ── appended in CG2 (CG1 codes stop here and decode with these at their defaults) ──
+            // Surface extras: wavy ribs, living-stone tops, euphorbia bands, cephalium
+            G_("ribWave",1,GT.F,0,1), G_("topFlat",1,GT.F,0,1), G_("fissure",1,GT.F,0,1), G_("mottle",1,GT.F,0,1), G_("mottleCol",1,GT.C,0,1),
+            G_("bands",1,GT.F,0,1), G_("bandCol",1,GT.C,0,1), G_("ceph",1,GT.F,0,1), G_("cephCol",1,GT.C,0,1),
+            // Leaf: rosettes, leafy stems, flower stalks
+            G_("leafN",4,GT.I,0,160), G_("leafLen",4,GT.F,.005f,1.2f), G_("leafWid",4,GT.F,.002f,.25f), G_("leafThick",4,GT.F,.1f,1), G_("leafShape",4,GT.F,0,1),
+            G_("leafSect",4,GT.F,0,1), G_("leafCurl",4,GT.F,-60,120), G_("leafOpen",4,GT.F,5,110), G_("leafInner",4,GT.F,0,90), G_("diverg",4,GT.F,80,180),
+            G_("internode",4,GT.F,0,.06f), G_("leafCol",4,GT.C,0,1), G_("leafTip",4,GT.C,0,1), G_("leafTipAmt",4,GT.F,0,1), G_("bloom",4,GT.F,0,1),
+            G_("edge",4,GT.F,0,1), G_("edgeCol",4,GT.C,0,1), G_("window",4,GT.F,0,1), G_("spots",4,GT.F,0,1), G_("spotCol",4,GT.C,0,1),
+            G_("teethN",4,GT.I,0,30), G_("teethLen",4,GT.F,0,.02f), G_("teethCol",4,GT.C,0,1), G_("tipSpine",4,GT.F,0,.06f),
+            G_("offsets",4,GT.I,0,10), G_("offScale",4,GT.F,.2f,1), G_("offDist",4,GT.F,.5f,2.5f), G_("offGen",4,GT.I,0,2),
+            G_("stalkLen",4,GT.F,0,3), G_("stalkTilt",4,GT.F,0,80), G_("stalkBranch",4,GT.I,0,6), G_("stalkFl",4,GT.I,1,40), G_("stalkCol",4,GT.C,0,1),
+            G_("tipRos",4,GT.B,0,1), G_("leafAlong",4,GT.I,0,6), G_("fork",4,GT.B,0,1),
         };
+        /// <summary>CG1 codes hold the first 118 slots; these ranges were widened in CG2.</summary>
+        const int LegacySlots = 118;
+        static readonly Dictionary<string, double[]> LegacyRange = new Dictionary<string, double[]> { ["form"] = new[] { 0.0, 2 }, ["radius"] = new[] { .02, .35 }, ["segLen"] = new[] { .03, .4 } };
 
         public static readonly Slot[] Slots;
         public static readonly Dictionary<string, int> SlotOf = new Dictionary<string, int>();
@@ -112,6 +128,11 @@ namespace Realms.Cacti
             ["vary"] = 0f, ["down"] = .2f, ["woolSize"] = .004f, ["woolCol"] = V(.85f, .8f, .7f), ["hairN"] = 0f, ["hairLen"] = 0f,
             ["fcol"] = V(.95f, .4f, .6f), ["fbase"] = V(.8f, .3f, .5f), ["flen"] = .03f, ["fwid"] = .015f, ["fn"] = 9f, ["felev"] = 50f, ["fcurl"] = 15f, ["frings"] = 1f, ["stamens"] = 30f,
             ["stLen"] = .01f, ["crownN"] = 3f, ["crownLat"] = 45f, ["fstart"] = .8f, ["fscale"] = 1f, ["fr0"] = .006f,
+            ["ribWave"] = 0f, ["topFlat"] = 0f, ["fissure"] = 0f, ["mottle"] = 0f, ["mottleCol"] = V(.75f, .7f, .6f), ["bands"] = 0f, ["bandCol"] = V(.5f, .4f, .45f), ["ceph"] = 0f, ["cephCol"] = V(.75f, .2f, .2f),
+            ["leafN"] = 0f, ["leafLen"] = .15f, ["leafWid"] = .04f, ["leafThick"] = .35f, ["leafShape"] = .15f, ["leafSect"] = .2f, ["leafCurl"] = 10f, ["leafOpen"] = 55f, ["leafInner"] = 15f, ["diverg"] = 137.5f, ["internode"] = 0f,
+            ["leafCol"] = V(.35f, .55f, .3f), ["leafTip"] = V(.7f, .3f, .25f), ["leafTipAmt"] = 0f, ["bloom"] = 0f, ["edge"] = 0f, ["edgeCol"] = V(.95f, .95f, .9f), ["window"] = 0f, ["spots"] = 0f, ["spotCol"] = V(.95f, .95f, .92f),
+            ["teethN"] = 0f, ["teethLen"] = 0f, ["teethCol"] = V(.8f, .7f, .5f), ["tipSpine"] = 0f, ["offsets"] = 0f, ["offScale"] = .5f, ["offDist"] = 1.2f, ["offGen"] = 0f,
+            ["stalkLen"] = 0f, ["stalkTilt"] = 10f, ["stalkBranch"] = 0f, ["stalkFl"] = 12f, ["stalkCol"] = V(.45f, .5f, .35f), ["tipRos"] = 0f, ["leafAlong"] = 0f, ["fork"] = 0f,
         };
         static float[] V(float r, float g, float b) => new[] { r, g, b };
 
@@ -206,6 +227,29 @@ namespace Realms.Cacti
                 case CactusKind.EasterLily: return FromDict("Easter lily cactus", new Dictionary<string, object> { ["form"]=1.0f,["steps"]=12.0f,["globeR"]=.07f,["globeH"]=.11f,["globeDur"]=8.0f,["pups"]=4.0f,["pupGen"]=1.0f,["pupScale"]=.5f,["pupDelay"]=3.0f,["pupDist"]=1.5f,["ribs"]=13.0f,["ribDepth"]=.28f,["ribPow"]=.4f,["col"]=V(.3f,.46f,.28f),["cap"]=1.0f,["areole"]=.025f,["nr"]=10.0f,["nc"]=3.0f,["lr"]=.012f,["lc"]=.02f,["ang"]=65.0f,["sw"]=.0007f,["scol"]=V(.6f,.5f,.4f),["stip"]=V(.3f,.25f,.2f),["ccol"]=V(.4f,.32f,.25f),["down"]=.15f,["woolSize"]=.004f,["woolCol"]=V(.85f,.82f,.75f),["fcol"]=V(.98f,.85f,.9f),["fbase"]=V(.9f,.75f,.8f),["flen"]=.07f,["fwid"]=.02f,["fn"]=12.0f,["felev"]=30.0f,["fcurl"]=30.0f,["frings"]=2.0f,["stamens"]=50.0f,["stLen"]=.025f,["crownN"]=2.0f,["crownLat"]=40.0f,["fstart"]=.75f,["fscale"]=1.2f,["fr0"]=.006f });
                 case CactusKind.Ladyfinger: return FromDict("Ladyfinger cactus", new Dictionary<string, object> { ["form"]=.0f,["steps"]=14.0f,["thicken"]=2.0f,["trop"]=.6f,["shoots"]=12.0f,["shootDelay"]=.0f,["shootP"]=.85f,["shootLean"]=45.0f,["shootSpread"]=.008f,["mainSegs"]=6.0f,["shootMin"]=3.0f,["shootMax"]=7.0f,["segLen"]=.03f,["radius"]=.02f,["ribs"]=.0f,["tubAmp"]=.35f,["tubPair"]=1.0f,["tubPow"]=1.5f,["tubR"]=.025f,["col"]=V(.36f,.5f,.3f),["cap"]=.9f,["areole"]=.012f,["nr"]=18.0f,["nc"]=.0f,["lr"]=.006f,["lc"]=.0f,["ang"]=85.0f,["sw"]=.0003f,["scol"]=V(.98f,.85f,.45f),["stip"]=V(1.0f,.95f,.7f),["ccol"]=V(.98f,.85f,.45f),["down"]=.0f,["woolSize"]=.0015f,["woolCol"]=V(.95f,.93f,.85f),["fcol"]=V(.97f,.92f,.7f),["fbase"]=V(.9f,.8f,.5f),["flen"]=.01f,["fwid"]=.004f,["fn"]=9.0f,["felev"]=45.0f,["fcurl"]=10.0f,["stamens"]=8.0f,["stLen"]=.004f,["crownN"]=3.0f,["crownLat"]=55.0f,["fstart"]=.7f,["fr0"]=.003f });
                 case CactusKind.OldLady: return FromDict("Old lady cactus", new Dictionary<string, object> { ["form"]=1.0f,["steps"]=11.0f,["globeR"]=.06f,["globeH"]=.1f,["globeDur"]=6.0f,["pups"]=2.0f,["pupGen"]=1.0f,["pupScale"]=.8f,["pupDelay"]=4.0f,["pupDist"]=1.7f,["ribs"]=.0f,["tubAmp"]=.45f,["tubPair"]=2.0f,["tubPow"]=1.8f,["tubR"]=.045f,["col"]=V(.32f,.48f,.32f),["cap"]=1.0f,["areole"]=.016f,["nr"]=20.0f,["nc"]=1.0f,["lr"]=.006f,["lc"]=.008f,["ang"]=85.0f,["sw"]=.0003f,["scol"]=V(.98f,.98f,.96f),["stip"]=V(1.0f,1.0f,1.0f),["ccol"]=V(.6f,.3f,.25f),["down"]=.0f,["woolSize"]=.004f,["woolCol"]=V(.99f,.99f,.97f),["hairN"]=2.0f,["hairLen"]=.03f,["fcol"]=V(.85f,.15f,.5f),["fbase"]=V(.65f,.1f,.35f),["flen"]=.012f,["fwid"]=.005f,["fn"]=10.0f,["felev"]=45.0f,["fcurl"]=15.0f,["stamens"]=8.0f,["stLen"]=.004f,["crownN"]=12.0f,["crownLat"]=45.0f,["fstart"]=.6f,["fscale"]=.9f,["fr0"]=.003f });
+                // ── 22 succulents and oddities (rosettes, stones, trees and trailers) ──
+                case CactusKind.AloeVera: return FromDict("Aloe vera", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=14.0f,["leafN"]=22.0f,["leafLen"]=.45f,["leafWid"]=.07f,["leafThick"]=.45f,["leafShape"]=.05f,["leafSect"]=.35f,["leafCurl"]=15.0f,["leafOpen"]=40.0f,["leafInner"]=8.0f,["leafCol"]=V(.45f,.58f,.45f),["bloom"]=.25f,["spots"]=.25f,["spotCol"]=V(.9f,.92f,.85f),["teethN"]=14.0f,["teethLen"]=.003f,["teethCol"]=V(.85f,.8f,.6f),["tipSpine"]=.002f,["offsets"]=3.0f,["offScale"]=.5f,["offDist"]=1.0f,["offGen"]=1.0f,["stalkLen"]=.8f,["stalkTilt"]=5.0f,["stalkBranch"]=1.0f,["stalkFl"]=30.0f,["stalkCol"]=V(.5f,.55f,.4f),["fcol"]=V(.98f,.82f,.22f),["fbase"]=V(.95f,.7f,.2f),["fn"]=6.0f,["flen"]=.022f,["fwid"]=.005f,["felev"]=12.0f,["fcurl"]=15.0f,["frings"]=1.0f,["stamens"]=6.0f,["stLen"]=.02f,["fr0"]=.003f,["fstart"]=.7f,["tipRos"]=1.0f,["col"]=V(.45f,.58f,.45f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=9.0f,["nc"]=1.0f,["lr"]=.0075f,["lc"]=.003f,["scol"]=V(.85f,.8f,.6f),["stip"]=V(.85f,.8f,.6f),["ccol"]=V(.85f,.8f,.6f) });
+                case CactusKind.SpiralAloe: return FromDict("Spiral aloe", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=16.0f,["leafN"]=120.0f,["leafLen"]=.28f,["leafWid"]=.07f,["leafThick"]=.4f,["leafShape"]=.1f,["leafSect"]=.3f,["leafCurl"]=-10.0f,["leafOpen"]=60.0f,["leafInner"]=20.0f,["diverg"]=142.5f,["leafCol"]=V(.42f,.55f,.42f),["bloom"]=.3f,["leafTip"]=V(.42f,.3f,.25f),["leafTipAmt"]=.6f,["teethN"]=10.0f,["teethLen"]=.003f,["teethCol"]=V(.9f,.88f,.8f),["tipSpine"]=.004f,["stalkLen"]=.6f,["stalkTilt"]=10.0f,["stalkBranch"]=2.0f,["stalkFl"]=24.0f,["stalkCol"]=V(.5f,.45f,.35f),["fcol"]=V(.95f,.5f,.45f),["fbase"]=V(.9f,.4f,.38f),["fn"]=6.0f,["flen"]=.025f,["fwid"]=.006f,["felev"]=12.0f,["fcurl"]=15.0f,["frings"]=1.0f,["stamens"]=6.0f,["stLen"]=.02f,["fr0"]=.004f,["fstart"]=.75f,["tipRos"]=1.0f,["col"]=V(.42f,.55f,.42f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=7.0f,["nc"]=1.0f,["lr"]=.0075f,["lc"]=.006f,["scol"]=V(.9f,.88f,.8f),["stip"]=V(.9f,.88f,.8f),["ccol"]=V(.9f,.88f,.8f) });
+                case CactusKind.CenturyPlant: return FromDict("Century plant", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=18.0f,["leafN"]=30.0f,["leafLen"]=1.1f,["leafWid"]=.2f,["leafThick"]=.25f,["leafShape"]=.05f,["leafSect"]=.3f,["leafCurl"]=35.0f,["leafOpen"]=55.0f,["leafInner"]=10.0f,["leafCol"]=V(.42f,.56f,.6f),["bloom"]=.3f,["teethN"]=12.0f,["teethLen"]=.012f,["teethCol"]=V(.35f,.25f,.18f),["tipSpine"]=.045f,["offsets"]=2.0f,["offScale"]=.3f,["offDist"]=1.0f,["offGen"]=1.0f,["stalkLen"]=3.0f,["stalkTilt"]=.0f,["stalkBranch"]=6.0f,["stalkFl"]=36.0f,["stalkCol"]=V(.45f,.5f,.32f),["fcol"]=V(.95f,.85f,.3f),["fbase"]=V(.7f,.75f,.3f),["fn"]=6.0f,["flen"]=.03f,["fwid"]=.008f,["felev"]=40.0f,["fcurl"]=10.0f,["frings"]=1.0f,["stamens"]=6.0f,["stLen"]=.035f,["fr0"]=.005f,["fstart"]=.8f,["tipRos"]=1.0f,["col"]=V(.42f,.56f,.6f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=8.0f,["nc"]=1.0f,["lr"]=.03f,["lc"]=.06f,["scol"]=V(.35f,.25f,.18f),["stip"]=V(.35f,.25f,.18f),["ccol"]=V(.35f,.25f,.18f) });
+                case CactusKind.QueenVictoria: return FromDict("Queen Victoria agave", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=16.0f,["leafN"]=90.0f,["leafLen"]=.18f,["leafWid"]=.045f,["leafThick"]=.5f,["leafShape"]=.05f,["leafSect"]=.45f,["leafCurl"]=-15.0f,["leafOpen"]=55.0f,["leafInner"]=15.0f,["leafCol"]=V(.18f,.32f,.22f),["edge"]=.9f,["edgeCol"]=V(.97f,.97f,.95f),["tipSpine"]=.012f,["teethCol"]=V(.12f,.1f,.08f),["stalkLen"]=1.5f,["stalkTilt"]=.0f,["stalkFl"]=40.0f,["stalkCol"]=V(.4f,.4f,.3f),["fcol"]=V(.9f,.85f,.7f),["fbase"]=V(.55f,.3f,.4f),["fn"]=6.0f,["flen"]=.02f,["fwid"]=.006f,["felev"]=40.0f,["fcurl"]=10.0f,["frings"]=1.0f,["stamens"]=6.0f,["stLen"]=.03f,["fr0"]=.004f,["fstart"]=.8f,["tipRos"]=1.0f,["col"]=V(.18f,.32f,.22f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=2.0f,["nc"]=1.0f,["lr"]=.0f,["lc"]=.018000000000000002f,["scol"]=V(.12f,.1f,.08f),["stip"]=V(.12f,.1f,.08f),["ccol"]=V(.12f,.1f,.08f) });
+                case CactusKind.Echeveria: return FromDict("Echeveria", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=14.0f,["leafN"]=40.0f,["leafLen"]=.06f,["leafWid"]=.035f,["leafThick"]=.35f,["leafShape"]=.5f,["leafSect"]=.25f,["leafCurl"]=10.0f,["leafOpen"]=70.0f,["leafInner"]=25.0f,["internode"]=.0008f,["leafCol"]=V(.65f,.55f,.65f),["bloom"]=.55f,["leafTip"]=V(.85f,.5f,.6f),["leafTipAmt"]=.6f,["tipSpine"]=.001f,["teethCol"]=V(.6f,.4f,.45f),["offsets"]=2.0f,["offScale"]=.5f,["offDist"]=1.1f,["offGen"]=1.0f,["stalkLen"]=.25f,["stalkTilt"]=45.0f,["stalkFl"]=10.0f,["stalkCol"]=V(.75f,.45f,.5f),["fcol"]=V(.98f,.5f,.4f),["fbase"]=V(.98f,.85f,.4f),["fn"]=5.0f,["flen"]=.012f,["fwid"]=.006f,["felev"]=20.0f,["fcurl"]=10.0f,["frings"]=1.0f,["stamens"]=10.0f,["stLen"]=.006f,["fr0"]=.003f,["fstart"]=.7f,["tipRos"]=1.0f,["col"]=V(.65f,.55f,.65f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=2.0f,["nc"]=1.0f,["lr"]=.0f,["lc"]=.0015f,["scol"]=V(.6f,.4f,.45f),["stip"]=V(.6f,.4f,.45f),["ccol"]=V(.6f,.4f,.45f) });
+                case CactusKind.ZebraHaworthia: return FromDict("Zebra plant", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=14.0f,["leafN"]=40.0f,["leafLen"]=.07f,["leafWid"]=.016f,["leafThick"]=.55f,["leafShape"]=.05f,["leafSect"]=.5f,["leafCurl"]=-20.0f,["leafOpen"]=35.0f,["leafInner"]=8.0f,["leafCol"]=V(.15f,.3f,.18f),["spots"]=.9f,["spotCol"]=V(.96f,.96f,.94f),["offsets"]=5.0f,["offScale"]=.7f,["offDist"]=1.3f,["offGen"]=2.0f,["stalkLen"]=.3f,["stalkTilt"]=10.0f,["stalkFl"]=10.0f,["stalkCol"]=V(.5f,.5f,.35f),["fcol"]=V(.95f,.93f,.9f),["fbase"]=V(.6f,.65f,.5f),["fn"]=6.0f,["flen"]=.008f,["fwid"]=.003f,["felev"]=15.0f,["fcurl"]=30.0f,["frings"]=1.0f,["stamens"]=6.0f,["stLen"]=.005f,["fr0"]=.002f,["fstart"]=.7f,["tipRos"]=1.0f,["col"]=V(.15f,.3f,.18f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f });
+                case CactusKind.WindowHaworthia: return FromDict("Window haworthia", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=12.0f,["leafN"]=18.0f,["leafLen"]=.035f,["leafWid"]=.016f,["leafThick"]=.9f,["leafShape"]=.45f,["leafSect"]=.8f,["leafCurl"]=-15.0f,["leafOpen"]=30.0f,["leafInner"]=10.0f,["leafCol"]=V(.4f,.6f,.4f),["window"]=.9f,["offsets"]=6.0f,["offScale"]=.8f,["offDist"]=1.0f,["offGen"]=2.0f,["stalkLen"]=.18f,["stalkTilt"]=10.0f,["stalkFl"]=8.0f,["stalkCol"]=V(.5f,.5f,.35f),["fcol"]=V(.95f,.93f,.9f),["fbase"]=V(.6f,.65f,.5f),["fn"]=6.0f,["flen"]=.008f,["fwid"]=.003f,["felev"]=15.0f,["fcurl"]=30.0f,["frings"]=1.0f,["stamens"]=6.0f,["stLen"]=.005f,["fr0"]=.002f,["fstart"]=.7f,["tipRos"]=1.0f,["col"]=V(.4f,.6f,.4f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f });
+                case CactusKind.Gasteria: return FromDict("Ox tongue", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=14.0f,["leafN"]=16.0f,["leafLen"]=.14f,["leafWid"]=.04f,["leafThick"]=.4f,["leafShape"]=.25f,["leafSect"]=.35f,["leafCurl"]=5.0f,["leafOpen"]=55.0f,["leafInner"]=15.0f,["diverg"]=180.0f,["leafCol"]=V(.25f,.38f,.25f),["spots"]=.8f,["spotCol"]=V(.92f,.92f,.88f),["offsets"]=2.0f,["offScale"]=.5f,["offDist"]=.8f,["offGen"]=1.0f,["stalkLen"]=.45f,["stalkTilt"]=25.0f,["stalkFl"]=16.0f,["stalkCol"]=V(.55f,.45f,.35f),["fcol"]=V(.85f,.35f,.4f),["fbase"]=V(.55f,.7f,.45f),["fn"]=6.0f,["flen"]=.02f,["fwid"]=.006f,["felev"]=10.0f,["fcurl"]=20.0f,["frings"]=1.0f,["stamens"]=6.0f,["stLen"]=.01f,["fr0"]=.004f,["fstart"]=.7f,["tipRos"]=1.0f,["col"]=V(.25f,.38f,.25f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f });
+                case CactusKind.HensAndChicks: return FromDict("Hens and chicks", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=14.0f,["leafN"]=50.0f,["leafLen"]=.045f,["leafWid"]=.016f,["leafThick"]=.35f,["leafShape"]=.2f,["leafSect"]=.3f,["leafCurl"]=-15.0f,["leafOpen"]=60.0f,["leafInner"]=15.0f,["leafCol"]=V(.4f,.55f,.35f),["leafTip"]=V(.7f,.2f,.25f),["leafTipAmt"]=.8f,["tipSpine"]=.0015f,["teethCol"]=V(.6f,.25f,.25f),["offsets"]=7.0f,["offScale"]=.5f,["offDist"]=1.4f,["offGen"]=2.0f,["stalkLen"]=.2f,["stalkTilt"]=.0f,["stalkFl"]=12.0f,["stalkCol"]=V(.55f,.45f,.4f),["fcol"]=V(.9f,.45f,.6f),["fbase"]=V(.8f,.3f,.5f),["fn"]=12.0f,["flen"]=.01f,["fwid"]=.003f,["felev"]=70.0f,["fcurl"]=.0f,["frings"]=1.0f,["stamens"]=10.0f,["stLen"]=.004f,["fr0"]=.003f,["fstart"]=.75f,["tipRos"]=1.0f,["col"]=V(.4f,.55f,.35f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=2.0f,["nc"]=1.0f,["lr"]=.0f,["lc"]=.0022500000000000003f,["scol"]=V(.6f,.25f,.25f),["stip"]=V(.6f,.25f,.25f),["ccol"]=V(.6f,.25f,.25f) });
+                case CactusKind.BabyToes: return FromDict("Baby toes", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=12.0f,["leafN"]=12.0f,["leafLen"]=.03f,["leafWid"]=.009f,["leafThick"]=1.0f,["leafShape"]=.5f,["leafSect"]=1.0f,["leafCurl"]=.0f,["leafOpen"]=20.0f,["leafInner"]=5.0f,["leafCol"]=V(.45f,.6f,.42f),["window"]=1.0f,["offsets"]=6.0f,["offScale"]=.85f,["offDist"]=.9f,["offGen"]=2.0f,["stalkLen"]=.0f,["crownN"]=1.0f,["crownLat"]=.0f,["fcol"]=V(.98f,.98f,.96f),["fbase"]=V(.98f,.95f,.75f),["flen"]=.015f,["fwid"]=.0025f,["stLen"]=.004f,["fr0"]=.004f,["fstart"]=.7f,["fscale"]=.75f,["fn"]=14.0f,["frings"]=2.0f,["felev"]=70.0f,["fcurl"]=.0f,["stamens"]=30.0f,["tipRos"]=1.0f,["col"]=V(.45f,.6f,.42f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f });
+                case CactusKind.LivingRock: return FromDict("Living rock cactus", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=12.0f,["leafN"]=22.0f,["leafLen"]=.045f,["leafWid"]=.03f,["leafThick"]=.7f,["leafShape"]=.05f,["leafSect"]=.6f,["leafCurl"]=-10.0f,["leafOpen"]=60.0f,["leafInner"]=35.0f,["leafCol"]=V(.6f,.62f,.52f),["spots"]=.35f,["spotCol"]=V(.85f,.82f,.72f),["stalkLen"]=.0f,["crownN"]=1.0f,["crownLat"]=.0f,["fcol"]=V(.95f,.6f,.75f),["fbase"]=V(.85f,.4f,.6f),["fn"]=12.0f,["frings"]=2.0f,["flen"]=.02f,["fwid"]=.005f,["felev"]=55.0f,["fcurl"]=10.0f,["stamens"]=30.0f,["stLen"]=.005f,["fr0"]=.004f,["fstart"]=.7f,["tipRos"]=1.0f,["col"]=V(.6f,.62f,.52f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f });
+                case CactusKind.BuddhasTemple: return FromDict("Buddha's temple", new Dictionary<string, object> { ["form"]=3.0f,["steps"]=16.0f,["leafN"]=60.0f,["leafLen"]=.035f,["leafWid"]=.045f,["leafThick"]=.25f,["leafShape"]=.35f,["leafSect"]=.1f,["leafCurl"]=-10.0f,["leafOpen"]=88.0f,["leafInner"]=70.0f,["diverg"]=90.0f,["internode"]=.004f,["leafCol"]=V(.42f,.55f,.45f),["bloom"]=.35f,["edge"]=.4f,["edgeCol"]=V(.85f,.88f,.85f),["offsets"]=3.0f,["offScale"]=.8f,["offDist"]=.8f,["offGen"]=1.0f,["stalkLen"]=.0f,["crownN"]=4.0f,["crownLat"]=15.0f,["fcol"]=V(.95f,.75f,.75f),["fbase"]=V(.9f,.6f,.6f),["fn"]=5.0f,["flen"]=.008f,["fwid"]=.003f,["felev"]=60.0f,["fcurl"]=5.0f,["frings"]=1.0f,["stamens"]=5.0f,["stLen"]=.003f,["fr0"]=.002f,["fstart"]=.8f,["tipRos"]=1.0f,["col"]=V(.42f,.55f,.45f),["ribs"]=8.0f,["ribDepth"]=.2f,["woolSize"]=.0f,["areole"]=.03f,["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f });
+                case CactusKind.LivingStones: return FromDict("Living stones", new Dictionary<string, object> { ["form"]=1.0f,["steps"]=10.0f,["globeR"]=.018f,["globeH"]=.04f,["globeDur"]=6.0f,["pups"]=4.0f,["pupGen"]=1.0f,["pupScale"]=.9f,["pupDelay"]=3.0f,["pupDist"]=2.2f,["ribs"]=.0f,["col"]=V(.62f,.55f,.46f),["topFlat"]=.9f,["fissure"]=.9f,["mottle"]=.9f,["mottleCol"]=V(.45f,.37f,.32f),["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f,["woolSize"]=.0f,["areole"]=.03f,["fcol"]=V(.98f,.85f,.2f),["fbase"]=V(.98f,.95f,.85f),["flen"]=.012f,["fwid"]=.0022f,["stLen"]=.003f,["crownN"]=1.0f,["crownLat"]=.0f,["fstart"]=.75f,["fr0"]=.003f,["fscale"]=1.2f,["fn"]=14.0f,["frings"]=2.0f,["felev"]=70.0f,["fcurl"]=.0f,["stamens"]=30.0f });
+                case CactusKind.SplitRock: return FromDict("Split rock", new Dictionary<string, object> { ["form"]=1.0f,["steps"]=10.0f,["globeR"]=.035f,["globeH"]=.05f,["globeDur"]=7.0f,["pups"]=1.0f,["pupGen"]=1.0f,["pupScale"]=.8f,["pupDelay"]=4.0f,["pupDist"]=1.8f,["ribs"]=.0f,["col"]=V(.55f,.56f,.5f),["topFlat"]=.35f,["fissure"]=1.0f,["mottle"]=.55f,["mottleCol"]=V(.3f,.32f,.3f),["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f,["woolSize"]=.0f,["areole"]=.03f,["fcol"]=V(.98f,.6f,.35f),["fbase"]=V(.98f,.92f,.8f),["flen"]=.025f,["fwid"]=.004f,["stLen"]=.005f,["crownN"]=1.0f,["crownLat"]=.0f,["fstart"]=.75f,["fr0"]=.005f,["fscale"]=1.1f,["fn"]=14.0f,["frings"]=2.0f,["felev"]=70.0f,["fcurl"]=.0f,["stamens"]=30.0f });
+                case CactusKind.BaseballPlant: return FromDict("Baseball plant", new Dictionary<string, object> { ["form"]=1.0f,["steps"]=12.0f,["globeR"]=.045f,["globeH"]=.07f,["globeDur"]=8.0f,["pups"]=.0f,["ribs"]=8.0f,["ribDepth"]=.12f,["ribPow"]=.6f,["col"]=V(.5f,.58f,.48f),["bands"]=.7f,["bandCol"]=V(.45f,.32f,.38f),["areole"]=.012f,["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f,["woolSize"]=.0f,["fcol"]=V(.6f,.6f,.3f),["fbase"]=V(.5f,.5f,.25f),["fn"]=5.0f,["flen"]=.008f,["fwid"]=.004f,["felev"]=50.0f,["fcurl"]=.0f,["frings"]=1.0f,["stamens"]=.0f,["crownN"]=3.0f,["crownLat"]=5.0f,["fstart"]=.7f,["fr0"]=.002f });
+                case CactusKind.TurksCap: return FromDict("Turk's cap", new Dictionary<string, object> { ["form"]=1.0f,["steps"]=14.0f,["globeR"]=.1f,["globeH"]=.12f,["globeDur"]=10.0f,["pups"]=.0f,["ribs"]=12.0f,["ribDepth"]=.28f,["ribPow"]=.4f,["col"]=V(.3f,.5f,.38f),["areole"]=.03f,["nr"]=9.0f,["nc"]=1.0f,["lr"]=.02f,["lc"]=.025f,["ang"]=65.0f,["sw"]=.001f,["scol"]=V(.6f,.4f,.32f),["stip"]=V(.8f,.6f,.5f),["ccol"]=V(.45f,.25f,.2f),["down"]=.2f,["woolSize"]=.004f,["woolCol"]=V(.85f,.8f,.7f),["ceph"]=.5f,["cephCol"]=V(.75f,.15f,.12f),["fcol"]=V(.95f,.35f,.55f),["fbase"]=V(.8f,.2f,.4f),["fn"]=7.0f,["flen"]=.012f,["fwid"]=.004f,["felev"]=40.0f,["fcurl"]=10.0f,["frings"]=1.0f,["stamens"]=8.0f,["stLen"]=.004f,["crownN"]=6.0f,["crownLat"]=20.0f,["fstart"]=.7f,["fr0"]=.003f });
+                case CactusKind.BrainCactus: return FromDict("Brain cactus", new Dictionary<string, object> { ["form"]=1.0f,["steps"]=12.0f,["globeR"]=.06f,["globeH"]=.07f,["globeDur"]=8.0f,["pups"]=.0f,["ribs"]=30.0f,["ribDepth"]=.35f,["ribPow"]=.3f,["ribWave"]=1.0f,["col"]=V(.35f,.5f,.35f),["areole"]=.035f,["nr"]=4.0f,["nc"]=2.0f,["lr"]=.006f,["lc"]=.018f,["ang"]=60.0f,["sw"]=.0008f,["scol"]=V(.85f,.8f,.7f),["stip"]=V(.95f,.9f,.8f),["ccol"]=V(.85f,.75f,.6f),["down"]=.1f,["woolSize"]=.002f,["woolCol"]=V(.9f,.88f,.8f),["fcol"]=V(.95f,.9f,.95f),["fbase"]=V(.6f,.3f,.55f),["fn"]=12.0f,["frings"]=2.0f,["flen"]=.015f,["fwid"]=.004f,["felev"]=50.0f,["fcurl"]=10.0f,["stamens"]=20.0f,["stLen"]=.005f,["crownN"]=4.0f,["crownLat"]=8.0f,["fstart"]=.75f,["fr0"]=.004f });
+                case CactusKind.QuiverTree: return FromDict("Quiver tree", new Dictionary<string, object> { ["form"]=.0f,["steps"]=26.0f,["thicken"]=7.0f,["r0"]=.6f,["mainSegs"]=6.0f,["shootMin"]=1.0f,["shootMax"]=1.0f,["segLen"]=.35f,["radius"]=.2f,["fork"]=1.0f,["maxDepth"]=3.0f,["jointAng"]=32.0f,["armSegs"]=2.0f,["armLenR"]=.65f,["armR"]=.76f,["armTrop"]=.6f,["ribs"]=.0f,["col"]=V(.75f,.68f,.5f),["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f,["woolSize"]=.0f,["tipRos"]=1.0f,["leafN"]=28.0f,["leafLen"]=.45f,["leafWid"]=.07f,["leafThick"]=.35f,["leafShape"]=.05f,["leafSect"]=.35f,["leafCurl"]=20.0f,["leafOpen"]=50.0f,["leafInner"]=10.0f,["leafCol"]=V(.55f,.65f,.6f),["bloom"]=.3f,["teethN"]=10.0f,["teethLen"]=.002f,["teethCol"]=V(.8f,.7f,.5f),["stalkLen"]=.35f,["stalkTilt"]=5.0f,["stalkBranch"]=2.0f,["stalkFl"]=10.0f,["stalkCol"]=V(.5f,.5f,.35f),["fcol"]=V(.98f,.85f,.2f),["fbase"]=V(.95f,.75f,.2f),["fn"]=6.0f,["flen"]=.02f,["fwid"]=.005f,["felev"]=12.0f,["fcurl"]=15.0f,["frings"]=1.0f,["stamens"]=6.0f,["stLen"]=.02f,["fr0"]=.003f,["fstart"]=.75f });
+                case CactusKind.BlackRose: return FromDict("Black rose", new Dictionary<string, object> { ["form"]=.0f,["steps"]=22.0f,["mainSegs"]=4.0f,["shootMin"]=1.0f,["shootMax"]=1.0f,["segLen"]=.08f,["radius"]=.015f,["fork"]=1.0f,["maxDepth"]=3.0f,["jointAng"]=30.0f,["armSegs"]=3.0f,["armLenR"]=1.0f,["armR"]=.9f,["armTrop"]=1.2f,["ribs"]=.0f,["col"]=V(.45f,.38f,.3f),["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f,["woolSize"]=.0f,["tipRos"]=1.0f,["leafN"]=50.0f,["leafLen"]=.1f,["leafWid"]=.045f,["leafThick"]=.2f,["leafShape"]=.45f,["leafSect"]=.1f,["leafCurl"]=-5.0f,["leafOpen"]=70.0f,["leafInner"]=25.0f,["leafCol"]=V(.18f,.05f,.1f),["edge"]=.25f,["edgeCol"]=V(.3f,.1f,.15f),["stalkLen"]=.35f,["stalkTilt"]=.0f,["stalkBranch"]=4.0f,["stalkFl"]=30.0f,["stalkCol"]=V(.4f,.45f,.25f),["fcol"]=V(.98f,.88f,.3f),["fbase"]=V(.95f,.8f,.25f),["fn"]=8.0f,["flen"]=.008f,["fwid"]=.003f,["felev"]=70.0f,["fcurl"]=.0f,["frings"]=1.0f,["stamens"]=10.0f,["stLen"]=.004f,["fr0"]=.002f,["fstart"]=.75f });
+                case CactusKind.MadagascarPalm: return FromDict("Madagascar palm", new Dictionary<string, object> { ["form"]=.0f,["steps"]=18.0f,["thicken"]=5.0f,["r0"]=.7f,["mainSegs"]=10.0f,["shootMin"]=1.0f,["shootMax"]=1.0f,["segLen"]=.15f,["radius"]=.08f,["ribs"]=.0f,["tubAmp"]=.15f,["tubPair"]=1.0f,["tubR"]=.05f,["col"]=V(.6f,.6f,.52f),["areole"]=.03f,["nr"]=3.0f,["nc"]=.0f,["lr"]=.03f,["lc"]=.0f,["ang"]=60.0f,["sw"]=.0012f,["scol"]=V(.4f,.38f,.35f),["stip"]=V(.2f,.18f,.16f),["ccol"]=V(.4f,.38f,.35f),["woolSize"]=.0f,["tipRos"]=1.0f,["leafN"]=26.0f,["leafLen"]=.3f,["leafWid"]=.03f,["leafThick"]=.15f,["leafShape"]=.1f,["leafSect"]=.0f,["leafCurl"]=25.0f,["leafOpen"]=70.0f,["leafInner"]=20.0f,["leafCol"]=V(.2f,.42f,.2f),["stalkLen"]=.0f,["crownN"]=4.0f,["crownLat"]=30.0f,["fcol"]=V(.98f,.98f,.95f),["fbase"]=V(.95f,.9f,.6f),["fn"]=5.0f,["flen"]=.04f,["fwid"]=.02f,["felev"]=60.0f,["fcurl"]=15.0f,["frings"]=1.0f,["stamens"]=5.0f,["stLen"]=.006f,["fr0"]=.006f,["fstart"]=.8f });
+                case CactusKind.StringOfPearls: return FromDict("String of pearls", new Dictionary<string, object> { ["form"]=.0f,["steps"]=18.0f,["thicken"]=2.0f,["trop"]=-2.0f,["mainSegs"]=2.0f,["shootMin"]=1.0f,["shootMax"]=1.0f,["segLen"]=.03f,["radius"]=.0025f,["pot"]=1.0f,["armP"]=1.0f,["armWhorl"]=3.0f,["armStart"]=.0f,["armEnd"]=1.0f,["maxArms"]=8.0f,["armPitch"]=80.0f,["armSegs"]=13.0f,["armLenR"]=1.0f,["armR"]=1.0f,["armTrop"]=-2.0f,["ribs"]=.0f,["col"]=V(.35f,.5f,.3f),["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f,["woolSize"]=.0f,["leafAlong"]=2.0f,["leafLen"]=.009f,["leafWid"]=.008f,["leafThick"]=1.0f,["leafShape"]=1.0f,["leafSect"]=1.0f,["leafCurl"]=.0f,["leafOpen"]=70.0f,["leafInner"]=40.0f,["leafCol"]=V(.38f,.6f,.32f),["window"]=.4f,["tipSpine"]=.002f,["teethCol"]=V(.35f,.5f,.3f),["fcol"]=V(.97f,.95f,.9f),["fbase"]=V(.9f,.85f,.8f),["fn"]=10.0f,["flen"]=.008f,["fwid"]=.002f,["felev"]=60.0f,["fcurl"]=5.0f,["frings"]=1.0f,["stamens"]=20.0f,["stLen"]=.006f,["crownN"]=1.0f,["crownLat"]=.0f,["fstart"]=.75f,["fr0"]=.003f });
+                case CactusKind.MedusasHead: return FromDict("Medusa's head", new Dictionary<string, object> { ["form"]=.0f,["steps"]=16.0f,["thicken"]=3.0f,["mainSegs"]=4.0f,["shootMin"]=1.0f,["shootMax"]=1.0f,["segLen"]=.03f,["radius"]=.1f,["armP"]=1.0f,["armWhorl"]=3.0f,["armStart"]=.0f,["armEnd"]=1.0f,["maxArms"]=10.0f,["armPitch"]=72.0f,["armSegs"]=8.0f,["armLenR"]=1.2f,["armR"]=.25f,["armTrop"]=-.4f,["neck"]=.3f,["ribs"]=.0f,["tubAmp"]=.3f,["tubPair"]=1.0f,["tubPow"]=1.4f,["tubR"]=.03f,["col"]=V(.4f,.5f,.38f),["cap"]=.7f,["areole"]=.03f,["nr"]=.0f,["nc"]=.0f,["lr"]=.0f,["lc"]=.0f,["woolSize"]=.0f,["fcol"]=V(.95f,.95f,.85f),["fbase"]=V(.7f,.75f,.4f),["fn"]=6.0f,["flen"]=.008f,["fwid"]=.003f,["felev"]=50.0f,["fcurl"]=.0f,["frings"]=1.0f,["stamens"]=.0f,["crownN"]=2.0f,["crownLat"]=10.0f,["fstart"]=.7f,["fr0"]=.003f });
                 default: throw new ArgumentOutOfRangeException(nameof(k));
             }
         }
@@ -248,6 +292,8 @@ namespace Realms.Cacti
                     wool = F("woolSize") > .0005f ? new WoolSpec { size = F("woolSize"), col = C("woolCol") } : null,
                     spines = spines,
                     hair = I("hairN") > 0 && F("hairLen") > .01f ? new HairSpec { n = I("hairN"), len = F("hairLen"), w = .0007f, col = new Color(.97f, .97f, .95f) } : null,
+                    ribWave = F("ribWave") > .02f ? F("ribWave") : 0, topFlat = F("topFlat") > .02f ? F("topFlat") : 0, fissure = F("fissure") > .02f ? F("fissure") : 0,
+                    mottle = F("mottle") > .02f ? F("mottle") : 0, mottleCol = C("mottleCol"), bands = F("bands") > .02f ? F("bands") : 0, bandCol = C("bandCol"),
                 };
             }
             var trunk = Surface(); trunk.trop = F("trop");
@@ -265,6 +311,19 @@ namespace Realms.Cacti
             padSty.lignify = B("lignify") ? new Vector2(steps * .45f, steps * .9f) : (Vector2?)null;
             padSty.teeth = B("teeth"); padSty.areole = B("teeth") ? 0 : F("areole");
 
+            // leaf, flower stalk and cephalium styles (indices 3, 2, 4 in every species)
+            CactusStyle Plain(Color c, float trop, float areole) { var st = Surface(); st.ribs = 0; st.tub = null; st.tip = null; st.cork = null; st.fleck = 0; st.wool = null; st.spines = null; st.hair = null;
+                st.ribWave = 0; st.topFlat = 0; st.fissure = 0; st.mottle = 0; st.bands = 0; st.col = c; st.trop = trop; st.areole = areole; return st; }
+            var lc = Lc(C("leafCol"), new Color(.78f, .8f, .85f), F("bloom") * .55f);
+            var leafSty = Plain(lc, 0, 0);
+            leafSty.leaf = new LeafSpec { shape = F("leafShape"), sect = F("leafSect"), curl = F("leafCurl"), teethN = F("teethLen") > .0003f ? I("teethN") : 0, teethLen = F("teethLen"), teethCol = C("teethCol"),
+                tipSpine = F("tipSpine"), edge = F("edge"), edgeCol = C("edgeCol"), window = F("window"), spots = F("spots"), spotCol = C("spotCol"), tipCol = C("leafTip"), tipAmt = F("leafTipAmt") };
+            var stalkSty = Plain(C("stalkCol"), .9f, 0); stalkSty.cap = .6f;
+            var cc = C("cephCol");
+            var cephSty = Plain(cc * .8f, 0, .0065f); cephSty.ribs = 26; cephSty.ribDepth = .04f; cephSty.cap = 1; cephSty.col.a = 1;
+            cephSty.wool = new WoolSpec { size = .0045f, col = Lc(cc, Color.white, .45f) };
+            cephSty.spines = new SpineSpec { nr = 7, nc = 0, lr = .007f, lc = 0, ang = 75, w = .00035f, col = cc * .75f, tip = cc, vary = 0, down = 0 };
+
             var fc = C("fcol"); var fb = C("fbase");
             var rings = new List<PetalRing> { new PetalRing { n = I("fn"), off = 0, len = F("flen"), wid = F("fwid"), elev = F("felev"), curl = F("fcurl"), col = fc, baseCol = fb } };
             if (I("frings") > 1) rings.Add(new PetalRing { n = Mathf.Max(3, I("fn") - 1), off = .5f, len = F("flen") * .8f, wid = F("fwid") * .85f, elev = F("felev") * .62f, curl = F("fcurl") * .6f, col = Lc(fc, Color.white, .15f), baseCol = fb });
@@ -272,7 +331,7 @@ namespace Realms.Cacti
             double spineL = spines != null ? Math.Max(Fd("lr"), Fd("lc")) : 0;
             double organR = form == Form.Column ? Fd("radius") * (I("maxArms") > 0 && Fd("armP") > .05 ? Fd("armR") : 1)
                           : form == Form.Globe ? Fd("globeR") * Math.Pow(Fd("pupScale"), I("pupGen") > 0 && I("pups") > 0 ? 1 : 0)
-                          : Fd("padLen") * Fd("padRatio") * .5;
+                          : form == Form.Pad ? Fd("padLen") * Fd("padRatio") * .5 : Fd("leafLen") * .4;
             float fs = (float)Math.Min(Math.Max(Fd("fscale"), Math.Min(spineL * .9 / Math.Max(.001, Fd("flen")), Fd("fscale") * 1.6)), Math.Max(.35, organR * 2.6 / (Fd("fr0") + Fd("flen"))));
 
             var spec = new CactusSpecies
@@ -280,15 +339,58 @@ namespace Realms.Cacti
                 Kind = (CactusKind)(-1), Id = "g:" + Encode(), Name = name, Latin = parents != null ? string.Join(" × ", parents) : "",
                 Steps = steps, Dur = 1, Thicken = F("thicken"), R0 = F("r0"),
                 Flower = new FlowerSpec { r0 = F("fr0"), stamens = I("stamens"), stLen = F("stLen"), rings = rings.ToArray() },
-                Styles = form == Form.Pad ? new[] { padSty } : new[] { trunk, arm },
+                Styles = form == Form.Pad ? new[] { padSty, padSty, stalkSty, leafSty, cephSty } : new[] { trunk, arm, stalkSty, leafSty, cephSty },
                 Pot = PotOf(form),
             };
             spec.BaseY = spec.Pot != null ? spec.Pot.h - .01f : 0;
 
+            // rosette apex A(i, g, flowered, scale, mature): a few leaves per step on the divergence angle, each unfolding from the
+            // inner angle to the open one (younger leaves sit upright in the centre); once old enough it sends up a flower stalk
+            int Nl = I("leafN"); float stalkL = F("stalkLen"); const int segsS = 9; int per = Mathf.Max(1, Mathf.CeilToInt(Nl / (float)Mathf.Max(2, JsR(steps * .55f))));
+            int fstepR = Mathf.Max(1, Mathf.Min(JsR(F("fstart") * steps), steps - (stalkL > .01f ? 4 : 1)));   // a stalk needs 3 steps to grow and one to open
+            spec.Rules['A'] = (m, c) =>
+            {
+                int i = (int)m[0], gg = (int)m[1]; float scA = m[3]; int N = Mathf.Max(1, JsR(Nl * (gg > 0 ? .75f : 1))); var o = new List<Module>();
+                float fl = m[2];
+                for (int q = 0; q < per && i + q < N; q++)
+                {
+                    int idx = i + q; float juv = m.P.Length > 4 && m[4] != 0 ? 1 : Mathf.Lerp(.5f, 1, Mathf.Min(1, idx / (N * .35f + 1)));   // a seedling's first leaves are small
+                    o.AddRange(Br(M('Y', 3), M('/', idx * F("diverg")), M('L', F("leafLen") * scA * juv, F("leafWid") * scA * juv, F("leafThick"), F("leafOpen"), F("leafInner"), 2.5f, F("leafWid") * scA * .25f)));
+                    if (F("internode") > 0) o.Add(M('f', F("internode") * scA));
+                }
+                if (fl == 0 && c.K >= fstepR && scA >= .6f && (gg == 0 || c.R() < .5))   // small offsets don't flower
+                {
+                    fl = 1;
+                    if (stalkL > .01f) o.AddRange(Br(M('Y', 2), M('/', c.Rnd(0, 360)), M('&', F("stalkTilt")), M('B', 0, scA, 0)));
+                    else { int n = I("crownN"); for (int q = 0; q < n; q++) o.AddRange(Br(M('/', q * 360f / n + c.Rnd(-10, 10)), M('&', n > 1 ? F("crownLat") : 0), M('f', F("leafWid") * scA * .2f), M('K', fs))); }
+                }
+                if (i + per >= N && fl != 0) return o;
+                o.Add(M('A', i + per, gg, fl, scA, m.P.Length > 4 ? m[4] : 0));
+                return o;
+            };
+            // flower stalk B(j, scale, lateral): three segments a step; flowers along the upper part (pendant when tubular), side branches
+            float pend = F("felev") < 25 ? 105 : 70;
+            spec.Rules['B'] = (m, c) =>
+            {
+                int j = (int)m[0]; float scB = m[1]; bool lat = m[2] != 0; int segs = lat ? 4 : segsS;
+                float seg = stalkL * scB / segsS * (lat ? .55f : 1), sr = Mathf.Max(.0015f, stalkL * scB * .012f * (lat ? .6f : 1));
+                if (j >= segs) return new List<Module>();
+                var o = new List<Module>(); int num = I("stalkFl") * (lat ? 1 : 5), den = lat ? 2 * segs : 3 * segs, nfl = Mathf.Max(1, (num + den - 1) / den);   // integer maths: identical in JS
+                for (int q = 0; q < 3 && j + q < segs; q++)
+                {
+                    int jj = j + q; o.Add(M('F', seg, sr));
+                    if (lat || jj >= segs * .4f) for (int k = 0; k < nfl; k++) o.AddRange(Br(M('/', c.Rnd(0, 360)), M('&', pend + c.Rnd(-12, 12)), M('f', sr * 1.5f), M('K', fs * .8f)));
+                    if (!lat && I("stalkBranch") > 0 && jj >= segs * .3f && jj < segs * .3f + I("stalkBranch")) o.AddRange(Br(M('/', jj * 137.5f), M('&', 40), M('B', 0, scB, 1)));
+                    if (jj == segs - 1) o.Add(M('K', fs * .8f));
+                }
+                o.Add(M('B', j + 3, scB, lat ? 1 : 0));
+                return o;
+            };
+
             if (form == Form.Column)
             {
                 int shoots = I("shoots"), delay = I("shootDelay"), main = I("mainSegs"), sMin = I("shootMin"), sMax = Mathf.Max(sMin, I("shootMax"));
-                float segLen = F("segLen"), rad = F("radius"); int maxArms = I("maxArms"), maxDepth = I("maxDepth"); bool jointed = B("jointed");
+                float segLen = F("segLen"), rad = F("radius"); int maxArms = I("maxArms"), maxDepth = I("maxDepth"); bool jointed = B("jointed"), fork = B("fork") && !jointed;
                 // segments a stem started at step k can still grow (one per step) and still flower; never cut a stem below 3
                 // jointed plants fork from below the tip, far enough back that the new joint clears the tip flower
                 double segA = Fd("segLen") * Fd("armLenR"), need = Math.Max((Fd("fr0") + Fd("flen")) * fs * .8, Fd("radius") * Fd("armR") * 1.8);
@@ -317,27 +419,34 @@ namespace Realms.Cacti
                     if (j >= Ln)
                     {
                         var e = new List<Module>();
-                        if ((d >= 1 || jointed) && d < maxDepth)
+                        if ((d >= 1 || jointed || fork) && d < maxDepth)
                         {
-                            int n = 1 + (c.R() < F("jointBranchP") ? 1 : 0);
+                            double r0n = c.R(); int n = fork ? 2 : 1 + (r0n < F("jointBranchP") ? 1 : 0); float az0 = fork ? c.Rnd(0, 360) : 0;   // forking trees split in two, opposite ways
                             for (int k = 0; k < n; k++)
                             {
                                 var br = new List<Module>();
                                 if (jointed) br.Add(M('f', -jointBack));
-                                br.Add(M('/', c.Rnd(0, 360))); br.Add(M('&', Mathf.Max(20, c.Rnd(F("jointAng") * .55f, F("jointAng") * 1.4f))));   // a new joint leaves at ≥20° so the tip flower stays clear
+                                br.Add(M('/', fork ? az0 + 180 * k : c.Rnd(0, 360))); br.Add(M('&', Mathf.Max(20, c.Rnd(F("jointAng") * .55f, F("jointAng") * 1.4f))));   // a new joint leaves at ≥20° so the tip flower stays clear
                                 br.Add(M('C', 0, Fit(Mathf.Max(1, JsR(I("armSegs") * c.Rnd(.75f, 1.3f))), c.K), d + 1));
                                 e.AddRange(Br(br.ToArray()));
                             }
                         }
                         // a tip either forks or flowers (a crown under new branches would be buried); jointed plants fork from
                         // just below the tip, out to the side, so their terminal crown stays clear
-                        if (e.Count == 0 || jointed) e.Add(M('E', d));
+                        if (e.Count == 0 || jointed) e.Add(B("tipRos") ? M('A', 0, 0, 0, Mathf.Pow(.85f, d), 1) : M('E', d));   // leafy tips end in a rosette
                         return e;
                     }
                     var o = new List<Module>();
                     if (jointed && d > 0) o.Add(M('Z'));
                     float segL = d == 0 ? segLen : (j == 0 && d == 1 && !jointed ? Mathf.Max(segLen * F("armLenR"), (rad + rad * F("armR")) * 1.3f) : segLen * F("armLenR"));   // first arm segment clears the trunk
-                    o.Add(M('F', segL, d == 0 ? rad : rad * F("armR")));
+                    o.Add(M('F', segL, d == 0 ? rad : rad * (fork ? Mathf.Pow(F("armR"), d) : F("armR"))));
+                    float rr = d == 0 ? rad : rad * F("armR");
+                    if (B("tipRos"))   // a growing leafy tip carries its rosette with it: each step's leaves live 3.5 steps, then drop
+                    {
+                        int nT = Mathf.Max(2, Mathf.CeilToInt(I("leafN") / 3f)); float scT = Mathf.Pow(.85f, d);
+                        for (int q = 0; q < nT; q++) o.AddRange(Br(M('Y', 3), M('/', (j * nT + q) * F("diverg")), M('L', F("leafLen") * scT, F("leafWid") * scT, F("leafThick"), F("leafOpen"), F("leafInner"), 1.2f, rr * .3f, 3.5f)));
+                    }
+                    for (int q = 0; q < I("leafAlong"); q++) o.AddRange(Br(M('Y', 3), M('/', j * 137.5f + q * 360f / I("leafAlong") + c.Rnd(-15, 15)), M('L', F("leafLen"), F("leafWid"), F("leafThick"), F("leafOpen"), F("leafInner"), 2, rr * .8f)));
                     c.State.TryGetValue("arms", out int arms);
                     for (int w = 0; w < I("armWhorl"); w++)
                         if (d == 0 && arms < maxArms && j >= F("armStart") * Ln && j <= F("armEnd") * Ln && c.R() < F("armP"))
@@ -376,11 +485,37 @@ namespace Realms.Cacti
                             o.AddRange(Br(M('$'), M('/', az), M('&', 90), M('f', R0 * Mathf.Max(c.Rnd(F("pupDist") * .92f, F("pupDist") * 1.08f), clear)), M('^', c.Rnd(70, 86)), M('D', Mathf.Floor(c.Rnd(1, I("pupDelay") + 1)), gg + 1)));
                         }
                     }
-                    o.Add(M('G', R0, F("globeH") * s, Mathf.Max(2, JsR(I("globeDur") * (gg > 0 ? .5f : 1f))))); o.Add(M('V', 0));
+                    o.Add(M('G', R0, F("globeH") * s, Mathf.Max(2, JsR(I("globeDur") * (gg > 0 ? .5f : 1f)))));
+                    if (gg == 0 && F("ceph") > .02f) o.Add(M('X', R0));   // Melocactus: a woolly, bristly cephalium caps the mature body
+                    o.Add(M('V', 0));
                     return o;
                 };
                 spec.Rules['D'] = (m, c) => m[0] > 0 ? List(M('D', m[0] - 1, m[1])) : List(M('H', m[1]));
+                int cephStep = Mathf.Max(2, JsR(steps * .45f));
+                spec.Rules['X'] = (m, c) => c.K >= cephStep ? List(M('f', -m[0] * .15f), M('Y', 4), M('G', m[0] * .6f, m[0] * (.2f + 1.1f * F("ceph")), 3), M('Y', 0)) : null;
                 spec.Rules['V'] = (m, c) => m[0] < wait ? List(M('V', m[0] + 1)) : (c.K >= fstep ? List(M('W', I("crownN"), F("crownLat"), fs)) : null);
+            }
+            else if (form == Form.Rosette)
+            {
+                // rosette R(g): offsets (pups) on a ring around the mother, then the leaf apex
+                int offs = I("offsets"); float osc = F("offScale"), rad0 = F("leafLen") * Mathf.Sin(F("leafOpen") * Mathf.Deg2Rad) + F("leafWid") * .3f;
+                spec.Axiom = c => List(M('Y', 0), M('f', .018f), M('R', 0));   // leaves start at the soil, not 2 cm under it
+                spec.Rules['R'] = (m, c) =>
+                {
+                    int gg = (int)m[0]; float sc = Mathf.Pow(osc, gg); var o = new List<Module>();
+                    if (gg < I("offGen") && offs > 0)
+                    {
+                        int n = gg == 0 ? offs : Mathf.Max(1, offs - 2);
+                        for (int k = 0; k < n; k++)
+                        {
+                            float az = gg == 0 ? k * 360f / n + c.Rnd(-20, 20) : c.Rnd(-60, 60);
+                            o.AddRange(Br(M('$'), M('/', az), M('&', 90), M('f', rad0 * sc * c.Rnd(F("offDist") * .9f, F("offDist") * 1.1f) + rad0 * sc * osc * .6f), M('^', 90), M('D', Mathf.Floor(c.Rnd(2, 5)), gg + 1)));
+                        }
+                    }
+                    o.Add(M('A', 0, gg, 0, sc));
+                    return o;
+                };
+                spec.Rules['D'] = (m, c) => m[0] > 0 ? List(M('D', m[0] - 1, m[1])) : List(M('R', m[1]));
             }
             else
             {
@@ -439,9 +574,14 @@ namespace Realms.Cacti
             new[] { "col", "tip", "tipAmt", "cork", "corkAmt", "corkH", "trunkDark", "fleck" }, new[] { "areole", "cap" },
             new[] { "nr", "nc", "lr", "lc", "ang", "sw", "scol", "stip", "ccol", "vary", "down" }, new[] { "woolSize", "woolCol", "hairN", "hairLen" },
             new[] { "fcol", "fbase" }, new[] { "flen", "fwid", "fn", "felev", "fcurl", "frings", "stamens", "stLen", "fr0", "fscale" }, new[] { "crownN", "crownLat" },
+            new[] { "leafN", "leafLen", "leafWid", "leafThick", "leafShape", "leafSect", "leafCurl", "leafOpen", "leafInner", "diverg", "internode", "tipRos" },   // 20 leaf architecture
+            new[] { "leafCol", "leafTip", "leafTipAmt", "bloom", "edge", "edgeCol", "window", "spots", "spotCol" },                                               // 21 leaf skin
+            new[] { "teethN", "teethLen", "teethCol", "tipSpine" }, new[] { "offsets", "offScale", "offDist", "offGen" },                                         // 22 leaf armature, 23 offsets
+            new[] { "stalkLen", "stalkTilt", "stalkBranch", "stalkFl", "stalkCol" }, new[] { "leafAlong", "fork" },                                             // 24 stalk, 25 leafy stems
+            new[] { "topFlat", "fissure", "mottle", "mottleCol" }, new[] { "bands", "bandCol", "ribWave" }, new[] { "ceph", "cephCol" },                         // 26 stone, 27 pattern, 28 cephalium
         };
         /// <summary>Which blocks build each form's architecture.</summary>
-        static readonly int[][] FormBlocks = { new[] { 2, 3, 4, 5 }, new[] { 6, 7 }, new[] { 8, 9 } };
+        static readonly int[][] FormBlocks = { new[] { 2, 3, 4, 5, 25 }, new[] { 6, 7 }, new[] { 8, 9 }, new[] { 20, 21, 22, 23 } };
 
         /// <summary>
         /// Express a genome in another body form, so a parent of a different form still passes on look-alike genes:
@@ -456,7 +596,8 @@ namespace Realms.Cacti
             double H, R; int n;   // common currency: height, radius, number of stems
             if (from == Form.Column) { R = Fd("radius"); H = Fd("segLen") * I("mainSegs"); n = I("shoots") + (int)JsRound(I("maxArms") * Fd("armP")); }
             else if (from == Form.Globe) { R = Fd("globeR"); H = Fd("globeH"); n = 1 + I("pups"); }
-            else { R = Math.Max(.02, Fd("padLen") * Fd("padRatio") * .4); H = Math.Max(.06, Fd("padLen") * Math.Min(I("padGen"), 4) * .8); n = I("baseStems") + (int)JsRound(I("padGen") * Fd("kidP1")); }
+            else if (from == Form.Pad) { R = Math.Max(.02, Fd("padLen") * Fd("padRatio") * .4); H = Math.Max(.06, Fd("padLen") * Math.Min(I("padGen"), 4) * .8); n = I("baseStems") + (int)JsRound(I("padGen") * Fd("kidP1")); }
+            else { double o = Fd("leafOpen") * (Math.PI / 180); R = Math.Max(.02, Fd("leafLen") * Math.Sin(o) * .4); H = Math.Max(.04, Fd("leafLen") * Math.Cos(o) + Fd("internode") * I("leafN")); n = 1 + I("offsets"); }
             if (toForm == Form.Column)
             {
                 double segs = Clamp(JsRound(H / Math.Max(R * .7, .03)), 2, 18);
@@ -469,6 +610,20 @@ namespace Realms.Cacti
                     Set("armSegs", 1); Set("armLenR", .9); Set("armR", .8); Set("neck", .5); Set("armStart", .2); Set("armEnd", 1);
                 }
                 else { Set("armP", 0); Set("maxArms", 0); Set("jointed", 0); }
+                Set("tipRos", from == Form.Rosette ? 1 : 0); Set("leafAlong", 0); Set("fork", 0);   // a rosette plant as a column: a stem crowned by its rosette
+            }
+            else if (toForm == Form.Rosette)
+            {
+                // a cactus as a rosette: ribs become leaves, spines become marginal teeth, skin becomes leaf skin
+                int ribs = I("ribs"); bool spiny = I("nr") + I("nc") > 0 && Fd("lr") + Fd("lc") > .002;
+                Set("leafN", Clamp(from == Form.Pad ? I("padGen") * 4 : (ribs > 0 ? ribs : 8) * 2 + 8, 8, 60)); Set("leafLen", Clamp(Math.Max(R * 1.6, H * .7), .03, .8));
+                Set("leafWid", from == Form.Pad ? Fd("padLen") * Fd("padRatio") * .55 : Clamp(R * .5, .01, .15)); Set("leafThick", from == Form.Pad ? .3 : .55);
+                Set("leafShape", from == Form.Pad ? .5 : .15); Set("leafSect", from == Form.Pad ? .1 : .35); Set("leafCurl", 10); Set("leafOpen", 55); Set("leafInner", 15); Set("diverg", 137.5); Set("internode", 0);
+                Set("offsets", Clamp(n - 1, 0, 6)); Set("offScale", .55); Set("offDist", 1.2); Set("offGen", n > 1 ? 1 : 0);
+                string[] dst = { "leafCol", "leafTip", "teethCol" }, src = { "col", "tip", "scol" };
+                for (int k = 0; k < 3; k++) for (int j = 0; j < 3; j++) g[SlotOf[dst[k]] + j] = Clamp(genes[SlotOf[src[k]] + j], 0, 1);
+                Set("leafTipAmt", Fd("tipAmt") * .5); Set("bloom", 0); Set("edge", 0); Set("window", 0); Set("spots", Clamp(Fd("fleck") * 2.5, 0, 1));
+                Set("teethN", spiny ? Clamp(JsRound(I("nr") * .8), 2, 30) : 0); Set("teethLen", spiny ? Fd("lr") * .35 : 0); Set("tipSpine", spiny ? Fd("lc") * .5 : 0);
             }
             else if (toForm == Form.Globe)
             {
@@ -540,8 +695,8 @@ namespace Realms.Cacti
             return head.Substring(0, Math.Min(14, head.Length)) + "…";
         }
 
-        // ───────────────────────── text code (CG1) ─────────────────────────
-        /// <summary>16 bits per slot over its range, base64url, prefixed "CG1." Same format as the previewer.</summary>
+        // ───────────────────────── text code (CG2; CG1 still decodes) ─────────────────────────
+        /// <summary>16 bits per slot over its range, base64url, prefixed "CG2." Same format as the previewer.</summary>
         public string Encode()
         {
             var bytes = new byte[Slots.Length * 2];
@@ -550,17 +705,23 @@ namespace Realms.Cacti
                 var s = Slots[i]; int q = (int)JsRound(Clamp((genes[i] - s.Min) / (s.Max - s.Min), 0, 1) * 65535);
                 bytes[2 * i] = (byte)(q >> 8); bytes[2 * i + 1] = (byte)(q & 255);
             }
-            return "CG1." + Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            return "CG2." + Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         }
 
         public static CactusGenome Decode(string code, string name = "Imported")
         {
-            var t = code.Trim(); if (t.StartsWith("CG1.")) t = t.Substring(4);
+            var t = code.Trim(); bool legacy = t.StartsWith("CG1.");
+            if (t.StartsWith("CG1.") || t.StartsWith("CG2.")) t = t.Substring(4);
             t = t.Replace('-', '+').Replace('_', '/'); t += new string('=', (4 - t.Length % 4) % 4);
-            var b = Convert.FromBase64String(t);
-            if (b.Length < Slots.Length * 2) throw new FormatException("Genome code is too short for this gene table.");
-            var g = new double[Slots.Length]; var o = new float[Slots.Length];
-            for (int i = 0; i < Slots.Length; i++) { var s = Slots[i]; int q = (b[2 * i] << 8) | b[2 * i + 1]; g[i] = s.Min + (s.Max - s.Min) * q / 65535; o[i] = -1; }
+            var b = Convert.FromBase64String(t); int nSlots = legacy ? LegacySlots : Slots.Length;
+            if (b.Length < nSlots * 2) throw new FormatException("Genome code is too short for this gene table.");
+            var g = FromDict(name, new Dictionary<string, object>()).genes; var o = new float[Slots.Length];   // slots a CG1 code does not hold keep their defaults
+            for (int i = 0; i < Slots.Length; i++)
+            {
+                o[i] = -1; if (i >= nSlots) continue;
+                var s = Slots[i]; double mn = s.Min, mx = s.Max; if (legacy && LegacyRange.TryGetValue(s.Name, out var lr)) { mn = lr[0]; mx = lr[1]; }
+                int q = (b[2 * i] << 8) | b[2 * i + 1]; g[i] = mn + (mx - mn) * q / 65535;
+            }
             return new CactusGenome { name = name, genes = g, origin = o };
         }
 
